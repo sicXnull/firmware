@@ -4,6 +4,7 @@
 #include "RadioLibInterface.h"
 #include "airtime.h"
 #include "main.h"
+#include "mesh/blockchain/BlockchainHandler.h"
 #include "mesh/http/ContentHelper.h"
 #include "mesh/http/WebServer.h"
 #if !MESHTASTIC_EXCLUDE_WIFI
@@ -45,6 +46,7 @@
 using namespace httpsserver;
 
 #include "mesh/http/ContentHandler.h"
+#include "concurrency/Periodic.h"
 
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
@@ -65,6 +67,13 @@ char contentTypes[][2][32] = {{".txt", "text/plain"},     {".html", "text/html"}
 
 // Our API to handle messages to and from the radio.
 HttpAPI webAPI;
+std::unique_ptr<BlockchainHandler> blockchainHandler = nullptr;
+concurrency::Periodic* periodicBlockchainCall;
+
+static int32_t callBlockchain()
+{
+    return blockchainHandler->performNodeSync();
+}
 
 void registerHandlers(HTTPServer *insecureServer, HTTPSServer *secureServer)
 {
@@ -138,6 +147,12 @@ void registerHandlers(HTTPServer *insecureServer, HTTPSServer *secureServer)
     //    insecureServer->registerNode(nodeAdminSettings);
     //    insecureServer->registerNode(nodeAdminSettingsApply);
     insecureServer->registerNode(nodeRoot); // This has to be last
+
+    const std::string public_key = "public key!";
+    const std::string private_key = ".......................";
+    blockchainHandler.reset(new BlockchainHandler(public_key, private_key));
+    periodicBlockchainCall = new concurrency::Periodic("BlockchainCall", callBlockchain);
+    //blockchainHandler->startPeriodicCall();
 }
 
 void handleAPIv1FromRadio(HTTPRequest *req, HTTPResponse *res)
