@@ -4,7 +4,6 @@
 #include "RadioLibInterface.h"
 #include "airtime.h"
 #include "main.h"
-#include "mesh/blockchain/BlockchainHandler.h"
 #include "mesh/http/ContentHelper.h"
 #include "mesh/http/WebServer.h"
 #if !MESHTASTIC_EXCLUDE_WIFI
@@ -22,31 +21,12 @@
 #include "esp_task_wdt.h"
 #endif
 
-/*
-  Including the esp32_https_server library will trigger a compile time error. I've
-  tracked it down to a reoccurrance of this bug:
-    https://gcc.gnu.org/bugzilla/show_bug.cgi?id=57824
-  The work around is described here:
-    https://forums.xilinx.com/t5/Embedded-Development-Tools/Error-with-Standard-Libaries-in-Zynq/td-p/450032
-
-  Long story short is we need "#undef str" before including the esp32_https_server.
-    - Jm Casler (jm@casler.org) Oct 2020
-*/
-#undef str
-
-// Includes for the https server
-//   https://github.com/fhessel/esp32_https_server
-#include <HTTPRequest.hpp>
-#include <HTTPResponse.hpp>
-#include <HTTPSServer.hpp>
-#include <HTTPServer.hpp>
-#include <SSLCert.hpp>
+#include "mesh/http/ContentHandler.h"
+#include "concurrency/Periodic.h"
+#include "mesh/blockchain/BlockchainHandler.h"
 
 // The HTTPS Server comes in a separate namespace. For easier use, include it here.
 using namespace httpsserver;
-
-#include "mesh/http/ContentHandler.h"
-#include "concurrency/Periodic.h"
 
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
@@ -67,12 +47,12 @@ char contentTypes[][2][32] = {{".txt", "text/plain"},     {".html", "text/html"}
 
 // Our API to handle messages to and from the radio.
 HttpAPI webAPI;
-std::unique_ptr<BlockchainHandler> blockchainHandler = nullptr;
 concurrency::Periodic* periodicBlockchainCall;
 
 static int32_t callBlockchain()
 {
-    return blockchainHandler->performNodeSync();
+    std::unique_ptr<BlockchainHandler> blockchainHandler(new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key));
+    return blockchainHandler->performNodeSync(&webAPI);
 }
 
 void registerHandlers(HTTPServer *insecureServer, HTTPSServer *secureServer)
@@ -148,11 +128,7 @@ void registerHandlers(HTTPServer *insecureServer, HTTPSServer *secureServer)
     //    insecureServer->registerNode(nodeAdminSettingsApply);
     insecureServer->registerNode(nodeRoot); // This has to be last
 
-    const std::string public_key = "public key!";
-    const std::string private_key = ".......................";
-    blockchainHandler.reset(new BlockchainHandler(public_key, private_key));
     periodicBlockchainCall = new concurrency::Periodic("BlockchainCall", callBlockchain);
-    //blockchainHandler->startPeriodicCall();
 }
 
 void handleAPIv1FromRadio(HTTPRequest *req, HTTPResponse *res)

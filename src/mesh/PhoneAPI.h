@@ -75,6 +75,8 @@ class PhoneAPI
     // Unregisters our observer.  A closed connection **can** be reopened by calling init again.
     virtual void close();
 
+    virtual bool sendSecret(uint32_t packetId);
+
     /**
      * Handle a ToRadio protobuf
      * @return true true if a packet was queued for sending (so that caller can yield)

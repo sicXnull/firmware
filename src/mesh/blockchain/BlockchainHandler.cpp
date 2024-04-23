@@ -7,54 +7,27 @@
 
 BlockchainHandler::BlockchainHandler(const std::string public_key, const std::string private_key): public_key_(public_key), private_key_(private_key)
 {
-    //kda_server_ = "http://staging.mishocy.io:1848/chainweb/0.0/mainnet01/chain/19/pact/api/v1/";
     kda_server_ = "http://kda.crankk.org/chainweb/0.0/mainnet01/chain/19/pact/api/v1/";
 }
 
-BlockchainHandler::~BlockchainHandler() {
-    //stopPeriodicCall();
-}
-
-// void BlockchainHandler::startPeriodicCall() {
-//     if (!periodic_task_) {
-//          // For this implementation, Periodic needs to be adapted to accept a std::function<int32>
-//         periodic_task_.reset(new concurrency::Periodic("BlockchainTask",
-//             [this]() -> int32_t {
-//                 return this->performNodeSync();
-//             }));
-//     }
-// }
-
-// void BlockchainHandler::stopPeriodicCall() {
-//     if (periodic_task_) {
-//         periodic_task_.reset();
-//     }
-// }
-
-int32_t BlockchainHandler::performNodeSync() {
+int32_t BlockchainHandler::performNodeSync(HttpAPI* webAPI) {
     LOG_INFO("\nWallet public key: %s\n", public_key_.data());
     LOG_INFO("\nWallet private key: %s\n", private_key_.data());
 
-    // String nodeId = "";
-    // char nodeIdHex[8];
-    // sprintf(nodeIdHex, "%08x", nodeDB->getNodeNum());
-    //nodeId += nodeIdHex;
+    if (!moduleConfig.wallet.enabled || public_key_.length() < 64 || private_key_.length() < 64) {
+        return 300000; //Every 5 minutes.
+    }
     String nodeId = String(nodeDB->getNodeNum(), HEX);
-    nodeId.toUpperCase(); // Ensure the hex string is uppercase if needed
     LOG_INFO("\nMy node id: %s\n", nodeId);
-    // if (/*!moduleConfig.wallet.enabled ||*/ public_key_.length() < 64 || private_key_.length() < 64) {
-    //     return 300000; //Every 5 minutes.
-    // }
 
     String resp = executeBlockchainCommand("local", "(free.mesh03.get-my-node)");
-    //LOG_INFO("\nResponse: %s\n", resp.c_str());
-    return 10000;
+    LOG_INFO("\nResponse: %s\n", resp.c_str());
 
     if (resp == "true") { //node exists, due for sending
         if (getValidTime(RTCQualityFromNet) > 0) {
-           // HttpAPI webAPI;
-            //webAPI.sendSecret();
-            executeBlockchainCommand("send","(free.mesh03.update-sent \"123123\")");
+            uint32_t packetId = generatePacketId();
+            webAPI->sendSecret(packetId);
+            executeBlockchainCommand("send","(free.mesh03.update-sent \"" + String(packetId, HEX) + "\")");
         }
     } else if (resp.startsWith("no")) { //node doesn't exist, insert it
         if (getValidTime(RTCQualityFromNet) > 0) {
@@ -132,19 +105,12 @@ String BlockchainHandler::generateSignature(const uint8_t* hashBin) {
     uint8_t signature[64];
     Ed25519::sign(signature, (uint8_t*)privateKey, (uint8_t*)publicKey, hashBin, HASH_SIZE);
 
-    // char byteHex[2];
-    // String signHex = "";
-    // for (uint8_t i = 0; i < sizeof(signature); i++) {
-    //     sprintf(byteHex, "%02x", signature[i]);
-    //     signHex += byteHex;
-    // }
-    // Use a more direct approach to convert bytes to hex string
-    String signHex;
-    signHex.reserve(sizeof(signature) * 2); // Pre-allocate memory to avoid reallocations
+    // Convert bytes to hex string
+    String signHex = "";
     for (uint8_t i = 0; i < sizeof(signature); i++) {
-        signHex += String(signature[i] >> 4, HEX);
-        signHex += String(signature[i] & 0xF, HEX);
+        signHex += String(signature[i] < 16 ? "0" : "") + String(signature[i], HEX);
     }
+    //LOG_INFO("\nsignHex: %s\n", signHex.c_str());
     return signHex;
 }
 
@@ -259,8 +225,8 @@ String BlockchainHandler::executeBlockchainCommand(String commandType, String co
 
     //LOG_INFO("%s\n", postRaw.c_str());
 
-    //int httpResponseCode = http.POST(postRaw);
-    //LOG_INFO("Kadena HTTP response %d\n", httpResponseCode);
+    int httpResponseCode = http.POST(postRaw);
+    LOG_INFO("Kadena HTTP response %d\n", httpResponseCode);
     String response = http.getString();
     if (response.length() > 50) {
         for (int i = 0; i < response.length(); i += 50) {
@@ -272,8 +238,9 @@ String BlockchainHandler::executeBlockchainCommand(String commandType, String co
         }
     }
     http.end();
-
-    return response.c_str();
+    LOG_INFO("Called HTTP end\n");
+    if (httpResponseCode < 0)
+        return "";
 
     if (commandType == "local") {
         String sendValue = parseBlockchainResponse(response);

@@ -1,16 +1,17 @@
 #pragma once
-
 #include <string>
 #include <memory>
 #include "configuration.h"
 #include "NodeDB.h"
 #include "mesh/NodeDB.h"
 #include "target_specific.h"
+#include "mesh/http/ContentHandler.h"
 #include "concurrency/Periodic.h"
 #include "mqtt/JSON.h"
 #include <Crypto.h>
 #include "BLAKE2b.h"
 #include "RTC.h"
+#include "router.h"
 #include <string.h>
 #if defined(ESP8266) || defined(ESP32)
 #include <pgmspace.h>
@@ -36,17 +37,7 @@ public:
     /**
      * Destructor for the BlockchainHandler class.
      */
-    ~BlockchainHandler();
-
-    /**
-     * Starts the periodic call to the blockchain.
-     */
-    // void startPeriodicCall();
-
-    // /**
-    //  * Stops the periodic call to the blockchain.
-    //  */
-    // void stopPeriodicCall();
+    ~BlockchainHandler() = default;;
 
     /**
      * Initiates a synchronization process with the blockchain, executing required actions based on the node's current state.
@@ -54,9 +45,22 @@ public:
      * This method is responsible for ensuring the node's data is up-to-date with the blockchain by performing synchronization tasks. 
      * It may involve sending or receiving data to/from the blockchain, depending on the node's status.
      *
+     * @param webAPI The HttpAPI instance used to call sendSecret()
      * @return The interval in milliseconds before the next synchronization attempt should occur.
      */
-    int32_t performNodeSync();
+    int32_t performNodeSync(HttpAPI* webAPI);
+
+    /**
+     * Executes a specified command on a blockchain web service.
+     *
+     * This method sends a command to a blockchain-related web service and retrieves the response.
+     * It is used to interact with blockchain operations through web service APIs.
+     *
+     * @param commandType Identifies the web service for the call.
+     * @param command Specifies the blockchain command for execution on the web service.
+     * @return A String object containing the response received from the web service after executing the command.
+     */
+    String executeBlockchainCommand(String commandType, String command);
 
 private:
 
@@ -86,20 +90,16 @@ private:
      */
     void HexToBytes(const std::string& hex, char* out);
 
-    String generateSignature(const uint8_t* hashBin);
-
     /**
-     * Executes a specified command on a blockchain web service.
+     * Generates a digital signature for a given binary hash.
      *
-     * This method sends a command to a blockchain-related web service and retrieves the response.
-     * It is used to interact with blockchain operations through web service APIs.
+     * This method takes a binary hash as input and generates a digital signature using the private key associated with the blockchain handler.
+     * The signature is used to authenticate transactions or data when interacting with the blockchain.
      *
-     * @param commandType Identifies the web service for the call.
-     * @param command Specifies the blockchain command for execution on the web service.
-     * @return A String object containing the response received from the web service after executing the command.
+     * @param hashBin A pointer to the binary hash that needs to be signed.
+     * @return A String containing the hexadecimal representation of the digital signature.
      */
-    String executeBlockchainCommand(String commandType, String command);
-
+    String generateSignature(const uint8_t* hashBin);
 
     /**
      * Creates a JSON object representing a blockchain command.
@@ -139,5 +139,4 @@ private:
     std::string private_key_;
     String kda_server_;
     BLAKE2b blake2b_;
-    //std::unique_ptr<concurrency::Periodic> periodic_task_;
 };
