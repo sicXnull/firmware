@@ -23,11 +23,13 @@ ProcessMessage TextMessageModule::handleReceived(const meshtastic_MeshPacket &mp
     String nodeId = String(mp.from, HEX);
     LOG_INFO("\nFrom node id: %s\n", nodeId);
     if (message == "CR24" && nodeId != "00000000") {
-        std::unique_ptr<BlockchainHandler> blockchainHandler(new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key));
+        std::unique_ptr<BlockchainHandler> blockchainHandler(
+            new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key));
         LOG_INFO("\nCrankk message received: %s\n", message);
 
         String packetId = String(mp.id, HEX);
-        blockchainHandler->executeBlockchainCommand("send", "(free.mesh03.add-received-with-chain \""+nodeId+"\" \""+packetId+"\" \"19\")");
+        blockchainHandler->executeBlockchainCommand("send", "(free.mesh03.add-received-with-chain \"" + nodeId + "\" \"" +
+                                                                packetId + "\" \"19\")");
     }
 
     // We only store/display messages destined for us.

@@ -21,9 +21,9 @@
 #include "esp_task_wdt.h"
 #endif
 
-#include "mesh/http/ContentHandler.h"
 #include "concurrency/Periodic.h"
 #include "mesh/blockchain/BlockchainHandler.h"
+#include "mesh/http/ContentHandler.h"
 
 // The HTTPS Server comes in a separate namespace. For easier use, include it here.
 using namespace httpsserver;
@@ -47,11 +47,12 @@ char contentTypes[][2][32] = {{".txt", "text/plain"},     {".html", "text/html"}
 
 // Our API to handle messages to and from the radio.
 HttpAPI webAPI;
-concurrency::Periodic* periodicBlockchainCall;
+concurrency::Periodic *periodicBlockchainCall;
 
 static int32_t callBlockchain()
 {
-    std::unique_ptr<BlockchainHandler> blockchainHandler(new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key));
+    std::unique_ptr<BlockchainHandler> blockchainHandler(
+        new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key));
     return blockchainHandler->performNodeSync(&webAPI);
 }
 

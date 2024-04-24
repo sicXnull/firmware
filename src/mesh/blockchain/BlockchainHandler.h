@@ -1,18 +1,18 @@
 #pragma once
-#include <string>
-#include <memory>
-#include "configuration.h"
-#include "NodeDB.h"
-#include "mesh/NodeDB.h"
-#include "target_specific.h"
-#include "mesh/http/ContentHandler.h"
-#include "concurrency/Periodic.h"
-#include "mqtt/JSON.h"
-#include <Crypto.h>
 #include "BLAKE2b.h"
+#include "NodeDB.h"
 #include "RTC.h"
+#include "concurrency/Periodic.h"
+#include "configuration.h"
+#include "mesh/NodeDB.h"
+#include "mesh/http/ContentHandler.h"
+#include "mqtt/JSON.h"
 #include "router.h"
+#include "target_specific.h"
+#include <Crypto.h>
+#include <memory>
 #include <string.h>
+#include <string>
 #if defined(ESP8266) || defined(ESP32)
 #include <pgmspace.h>
 #else
@@ -23,9 +23,9 @@
 
 #define HASH_SIZE 32
 
-
-class BlockchainHandler {
-public:
+class BlockchainHandler
+{
+  public:
     /**
      * Initializes a new instance of the BlockchainHandler class with specified public and private keys.
      *
@@ -37,18 +37,19 @@ public:
     /**
      * Destructor for the BlockchainHandler class.
      */
-    ~BlockchainHandler() = default;;
+    ~BlockchainHandler() = default;
+    ;
 
     /**
      * Initiates a synchronization process with the blockchain, executing required actions based on the node's current state.
      *
-     * This method is responsible for ensuring the node's data is up-to-date with the blockchain by performing synchronization tasks. 
-     * It may involve sending or receiving data to/from the blockchain, depending on the node's status.
+     * This method is responsible for ensuring the node's data is up-to-date with the blockchain by performing synchronization
+     * tasks. It may involve sending or receiving data to/from the blockchain, depending on the node's status.
      *
      * @param webAPI The HttpAPI instance used to call sendSecret()
      * @return The interval in milliseconds before the next synchronization attempt should occur.
      */
-    int32_t performNodeSync(HttpAPI* webAPI);
+    int32_t performNodeSync(HttpAPI *webAPI);
 
     /**
      * Executes a specified command on a blockchain web service.
@@ -62,8 +63,7 @@ public:
      */
     String executeBlockchainCommand(String commandType, String command);
 
-private:
-
+  private:
     /**
      * Generates a binary hash from the given HashVector.
      *
@@ -71,7 +71,7 @@ private:
      * @param test A pointer to the HashVector containing the data to hash.
      * @return A pointer to the resulting binary hash.
      */
-    uint8_t* Binhash(Hash *hash, const struct HashVector *test);
+    uint8_t *Binhash(Hash *hash, const struct HashVector *test);
 
     /**
      * Generates a Kadena hash from the given HashVector.
@@ -88,18 +88,18 @@ private:
      * @param hex The hexadecimal string to convert.
      * @param out A pointer to the output byte array.
      */
-    void HexToBytes(const std::string& hex, char* out);
+    void HexToBytes(const std::string &hex, char *out);
 
     /**
      * Generates a digital signature for a given binary hash.
      *
-     * This method takes a binary hash as input and generates a digital signature using the private key associated with the blockchain handler.
-     * The signature is used to authenticate transactions or data when interacting with the blockchain.
+     * This method takes a binary hash as input and generates a digital signature using the private key associated with the
+     * blockchain handler. The signature is used to authenticate transactions or data when interacting with the blockchain.
      *
      * @param hashBin A pointer to the binary hash that needs to be signed.
      * @return A String containing the hexadecimal representation of the digital signature.
      */
-    String generateSignature(const uint8_t* hashBin);
+    String generateSignature(const uint8_t *hashBin);
 
     /**
      * Creates a JSON object representing a blockchain command.
@@ -110,7 +110,7 @@ private:
      * @param command The blockchain command to be executed.
      * @return A JSONObject representing the command to be sent to the blockchain.
      */
-    JSONObject createCommandObject(const String& command);
+    JSONObject createCommandObject(const String &command);
 
     /**
      * Prepares a JSON object for POST request based on the command object and command type.
@@ -122,7 +122,7 @@ private:
      * @param commandType The type of the command, affecting how the post object is prepared.
      * @return A JSONObject ready for being sent as a POST request.
      */
-    JSONObject preparePostObject(const JSONObject& cmdObject, const String& commandType);
+    JSONObject preparePostObject(const JSONObject &cmdObject, const String &commandType);
 
     /**
      * Parses the blockchain response received as a string into a more usable form.
@@ -133,7 +133,7 @@ private:
      * @param response The blockchain response as a raw string.
      * @return A String representing the parsed and possibly simplified response.
      */
-    String parseBlockchainResponse(const String& response);
+    String parseBlockchainResponse(const String &response);
 
     std::string public_key_;
     std::string private_key_;

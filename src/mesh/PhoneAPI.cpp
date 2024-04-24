@@ -85,7 +85,7 @@ bool PhoneAPI::sendSecret(uint32_t packetId)
     memset(&toRadioScratch, 0, sizeof(toRadioScratch));
     toRadioScratch.packet.which_payload_variant = meshtastic_MeshPacket_decoded_tag;
     // toRadioScratch.packet.want_ack = true;
-    toRadioScratch.packet.id = packetId; //generatePacketId(); //next step assign
+    toRadioScratch.packet.id = packetId; // generatePacketId(); //next step assign
     // toRadioScratch.packet.rx_time = getValidTime(RTCQualityFromNet); //next step assign
     // toRadioScratch.packet.from = 0x8b8d4d0; //next step assign
     toRadioScratch.packet.to = 0xffffffff;
