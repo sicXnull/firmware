@@ -1,3 +1,4 @@
+/* trunk-ignore-all(clang-format) */
 #include "BlockchainHandler.h"
 #include "FSCommon.h"
 #include "HTTPClient.h"
@@ -11,29 +12,32 @@ BlockchainHandler::BlockchainHandler(const std::string public_key, const std::st
 }
 
 int32_t BlockchainHandler::performNodeSync(HttpAPI* webAPI) {
+
     LOG_INFO("\nWallet public key: %s\n", public_key_.data());
     LOG_INFO("\nWallet private key: %s\n", private_key_.data());
 
-    if (!moduleConfig.wallet.enabled || public_key_.length() < 64 || private_key_.length() < 64) {
+    //Here we need a check if Wi-Fi is available since these are not fully sufficient
+    if (!moduleConfig.wallet.enabled || public_key_.length() < 64 || private_key_.length() < 64 || getValidTime(RTCQualityFromNet) == 0) {
         return 300000; //Every 5 minutes.
     }
     String nodeId = String(nodeDB->getNodeNum(), HEX);
     LOG_INFO("\nMy node id: %s\n", nodeId);
 
+    //
     String resp = executeBlockchainCommand("local", "(free.mesh03.get-my-node)");
     LOG_INFO("\nResponse: %s\n", resp.c_str());
 
     if (resp == "true") { //node exists, due for sending
-        if (getValidTime(RTCQualityFromNet) > 0) {
+        // if (getValidTime(RTCQualityFromNet) > 0) {
             uint32_t packetId = generatePacketId();
             webAPI->sendSecret(packetId);
             executeBlockchainCommand("send","(free.mesh03.update-sent \"" + String(packetId, HEX) + "\")");
-        }
+        // }
     } else if (resp.startsWith("no")) { //node doesn't exist, insert it
-        if (getValidTime(RTCQualityFromNet) > 0) {
+        // if (getValidTime(RTCQualityFromNet) > 0) {
             resp = executeBlockchainCommand("send","(free.mesh03.insert-my-node \"" + nodeId + "\")");
             LOG_INFO("\nNode insert local response: %s\n", resp);
-        }
+        // }
     } else { //node exists, not due for sending
         LOG_INFO("\n%s\n", "DON'T SEND");
     }
