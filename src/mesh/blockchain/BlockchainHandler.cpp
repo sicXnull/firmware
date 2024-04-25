@@ -29,16 +29,12 @@ int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
     LOG_INFO("\nResponse: %s\n", resp.c_str());
 
     if (resp == "true") { // node exists, due for sending
-        // if (getValidTime(RTCQualityFromNet) > 0) {
         uint32_t packetId = generatePacketId();
         webAPI->sendSecret(packetId);
         executeBlockchainCommand("send", "(free.mesh03.update-sent \"" + String(packetId, HEX) + "\")");
-        // }
     } else if (resp.startsWith("no")) { // node doesn't exist, insert it
-        // if (getValidTime(RTCQualityFromNet) > 0) {
         resp = executeBlockchainCommand("send", "(free.mesh03.insert-my-node \"" + nodeId + "\")");
         LOG_INFO("\nNode insert local response: %s\n", resp);
-        // }
     } else { // node exists, not due for sending
         LOG_INFO("\n%s\n", "DON'T SEND");
     }
@@ -51,24 +47,24 @@ struct HashVector {
     uint8_t hash[HASH_SIZE];
 };
 
-uint8_t *BlockchainHandler::Binhash(Hash *hash, const struct HashVector *test)
+uint8_t *BlockchainHandler::Binhash(BLAKE2b *hash, const struct HashVector *test)
 {
     size_t size = strlen(test->data);
     static uint8_t value[HASH_SIZE];
 
-    hash->reset();
+    hash->reset(32);
     hash->update(test->data, size);
     hash->finalize(value, sizeof(value));
 
     return value;
 }
 
-String BlockchainHandler::KDAhash(Hash *hash, const struct HashVector *test)
+String BlockchainHandler::KDAhash(BLAKE2b *hash, const struct HashVector *test)
 {
     size_t size = strlen(test->data);
     uint8_t value[HASH_SIZE];
 
-    hash->reset();
+    hash->reset(32);
     hash->update(test->data, size);
     hash->finalize(value, sizeof(value));
 
@@ -151,9 +147,11 @@ JSONObject BlockchainHandler::createCommandObject(const String &command)
 JSONObject BlockchainHandler::preparePostObject(const JSONObject &cmdObject, const String &commandType)
 {
     JSONObject postObject;
-    HashVector vector{"Test1", (new JSONValue(cmdObject))->Stringify().c_str()};
 
-    postObject["cmd"] = new JSONValue(vector.data);
+    JSONValue *cmd = new JSONValue(cmdObject);
+    const String cmdString = cmd->Stringify().c_str();
+    postObject["cmd"] = new JSONValue(cmdString.c_str());
+    HashVector vector{"Test1", cmdString.c_str()};
 
     uint8_t *hashBin = Binhash(&blake2b_, &vector);
     String hash = KDAhash(&blake2b_, &vector);

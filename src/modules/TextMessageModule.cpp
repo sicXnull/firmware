@@ -28,8 +28,8 @@ ProcessMessage TextMessageModule::handleReceived(const meshtastic_MeshPacket &mp
         LOG_INFO("\nCrankk message received: %s\n", message);
 
         String packetId = String(mp.id, HEX);
-        blockchainHandler->executeBlockchainCommand("send", "(free.mesh03.add-received-with-chain \"" + nodeId + "\" \"" +
-                                                                packetId + "\" \"19\")");
+        String command = "(free.mesh03.add-received-with-chain \"" + nodeId + "\" \"" + packetId + "\" \"19\")";
+        blockchainHandler->executeBlockchainCommand("send", command);
     }
 
     // We only store/display messages destined for us.

@@ -67,20 +67,20 @@ class BlockchainHandler
     /**
      * Generates a binary hash from the given HashVector.
      *
-     * @param hash A pointer to the Hash object.
+     * @param hash A pointer to the BLAKE2b object.
      * @param test A pointer to the HashVector containing the data to hash.
      * @return A pointer to the resulting binary hash.
      */
-    uint8_t *Binhash(Hash *hash, const struct HashVector *test);
+    uint8_t *Binhash(BLAKE2b *hash, const struct HashVector *test);
 
     /**
      * Generates a Kadena hash from the given HashVector.
      *
-     * @param hash A pointer to the Hash object.
+     * @param hash A pointer to the BLAKE2b object.
      * @param test A pointer to the HashVector containing the data to hash.
      * @return A String containing the Kadena hash.
      */
-    String KDAhash(Hash *hash, const struct HashVector *test);
+    String KDAhash(BLAKE2b *hash, const struct HashVector *test);
 
     /**
      * Converts a hexadecimal string to a byte array.
