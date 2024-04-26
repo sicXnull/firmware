@@ -14,18 +14,17 @@ ProcessMessage TextMessageModule::handleReceived(const meshtastic_MeshPacket &mp
     LOG_INFO("Received text msg from=0x%0x, id=0x%x, msg=%.*s\n", mp.from, mp.id, p.payload.size, p.payload.bytes);
 #endif
 
-    String message = "";
-    char msg[237];
-    sprintf(msg, "%s", p.payload.bytes);
-    message += msg;
+    String message(p.payload.bytes, p.payload.size);
     LOG_INFO("\nCrankk message received: %s\n", message);
 
-    String nodeId = String(mp.from, HEX);
+    char nodeIdHex[8];
+    sprintf(nodeIdHex, "%08x", mp.from);
+    String nodeId = String(nodeIdHex);
     LOG_INFO("\nFrom node id: %s\n", nodeId);
     if (message == "CR24" && nodeId != "0") {
+        LOG_INFO("\nCreating BlockchainHandler with public key: %s\n", moduleConfig.wallet.public_key);
         std::unique_ptr<BlockchainHandler> blockchainHandler(
             new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key));
-        LOG_INFO("\nCrankk message received: %s\n", message);
 
         String packetId = String(mp.id, HEX);
         String command = "(free.mesh03.add-received-with-chain \"" + nodeId + "\" \"" + packetId + "\" \"19\")";

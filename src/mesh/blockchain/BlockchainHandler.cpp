@@ -4,11 +4,50 @@
 #include "WiFi.h"
 #include <fstream>
 #include <memory>
+#include <ctime>
+#include <sstream>
+#include <iomanip>
+
+
+bool isWIFIavailable() {
+    return getValidTime(RTCQualityFromNet) != 0 && WiFi.status() == WL_CONNECTED;
+}
+
+String getCurrentTimestamp() {
+    // Get current time
+    std::time_t now = std::time(nullptr);
+    std::tm* now_tm = std::gmtime(&now);
+
+    // Use stringstream to format the time
+    std::ostringstream oss;
+    oss << std::put_time(now_tm, "%Y-%m-%d %H:%M:%S");
+    oss << ".000 UTC";  // Append .000 for milliseconds and UTC for timezone
+
+    return String(oss.str().c_str());
+}
+
+void logLongString(const String& str, size_t chunkSize = 50) {
+    size_t len = str.length();
+    if (len <= chunkSize) {
+        LOG_INFO("%s\n", str.c_str());
+    } else {
+        size_t i = 0;
+        while (i < len) {
+            size_t end = std::min(i + chunkSize, len);
+            LOG_INFO("%s\n", str.substring(i, end).c_str());
+            i = end;
+        }
+    }
+}
 
 BlockchainHandler::BlockchainHandler(const std::string public_key, const std::string private_key)
     : public_key_(public_key), private_key_(private_key)
 {
     kda_server_ = "http://kda.crankk.org/chainweb/0.0/mainnet01/chain/19/pact/api/v1/";
+}
+
+bool BlockchainHandler::isWalletConfigValid() {
+    return moduleConfig.wallet.enabled && public_key_.length() == 64 && private_key_.length() == 64;
 }
 
 int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
@@ -17,14 +56,14 @@ int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
     LOG_INFO("\nWallet public key: %s\n", public_key_.data());
     LOG_INFO("\nWallet private key: %s\n", private_key_.data());
 
-    if (!moduleConfig.wallet.enabled || public_key_.length() < 64 || private_key_.length() < 64 ||
-        getValidTime(RTCQualityFromNet) == 0 || WiFi.status() != WL_CONNECTED) {
+    if (!isWalletConfigValid() || !isWIFIavailable()) {
         return 300000; // Every 5 minutes.
     }
-    String nodeId = String(nodeDB->getNodeNum(), HEX);
+    char nodeIdHex[8];
+    sprintf(nodeIdHex, "%08x", nodeDB->getNodeNum());
+    String nodeId = String(nodeIdHex);
     LOG_INFO("\nMy node id: %s\n", nodeId);
 
-    //
     String resp = executeBlockchainCommand("local", "(free.mesh03.get-my-node)");
     LOG_INFO("\nResponse: %s\n", resp.c_str());
 
@@ -71,9 +110,7 @@ String BlockchainHandler::KDAhash(BLAKE2b *hash, const struct HashVector *test)
     auto inputLength = sizeof(value);
     char output[base64::encodeLength(inputLength)];
     base64::encode(value, inputLength, output);
-    // LOG_INFO("\n%s\n", output);
     String hashString = String(output);
-    // LOG_INFO("\n%s\n", hashString.c_str());
     hashString.replace("+", "-");
     hashString.replace("/", "_");
     hashString.replace("=", "");
@@ -125,8 +162,8 @@ JSONObject BlockchainHandler::createCommandObject(const String &command)
                              {"sender", new JSONValue("k:" + public_key_)}};
     cmdObject["meta"] = new JSONValue(metaObject);
 
-    // Generate this from actual time, or something similar
-    cmdObject["nonce"] = new JSONValue("2024-04-03 01:16:49.647 UTC");
+    String current_timestamp = getCurrentTimestamp();
+    cmdObject["nonce"] = new JSONValue(current_timestamp.c_str());
     cmdObject["networkId"] = new JSONValue("mainnet01");
 
     JSONObject execObject = {
@@ -149,11 +186,11 @@ JSONObject BlockchainHandler::preparePostObject(const JSONObject &cmdObject, con
 
     uint8_t *hashBin = Binhash(&blake2b_, &vector);
     String hash = KDAhash(&blake2b_, &vector);
-    LOG_INFO("\n%s\n", hash.c_str());
+    // LOG_INFO("\n%s\n", hash.c_str());
 
-    for (uint8_t i = 0; i < HASH_SIZE; i++) {
-        LOG_INFO("%d,%d\n", i, hashBin[i]);
-    }
+    // for (uint8_t i = 0; i < HASH_SIZE; i++) {
+    //     LOG_INFO("%d,%d\n", i, hashBin[i]);
+    // }
 
     String signHex = generateSignature(hashBin);
     postObject["hash"] = new JSONValue(hash.c_str());
@@ -189,7 +226,7 @@ String BlockchainHandler::parseBlockchainResponse(const String &response)
 
 String BlockchainHandler::executeBlockchainCommand(String commandType, String command)
 {
-    if (getValidTime(RTCQualityFromNet) == 0 || WiFi.status() != WL_CONNECTED) {
+    if (!isWIFIavailable()) {
         return "No wifi";
     }
     HTTPClient http;
@@ -210,31 +247,14 @@ String BlockchainHandler::executeBlockchainCommand(String commandType, String co
     JSONValue *post = commandType == "local" ? new JSONValue(postObject) : new JSONValue(cmdsObject);
 
     const String postRaw = post->Stringify().c_str();
-    // Put this in a logging function please
-    if (postRaw.length() > 50) {
-        for (int i = 0; i < postRaw.length(); i += 50) {
-            if (i + 50 < postRaw.length()) {
-                LOG_INFO("%s\n", postRaw.substring(i, i + 50).c_str());
-            } else {
-                LOG_INFO("%s\n", postRaw.substring(i, postRaw.length()).c_str());
-            }
-        }
-    }
+    logLongString(postRaw);
 
     http.setTimeout(15000);
     int httpResponseCode = http.POST(postRaw);
     LOG_INFO("Kadena HTTP response %d\n", httpResponseCode);
     String response = http.getString();
-    // Put this in a logging function please
-    if (response.length() > 50) {
-        for (int i = 0; i < response.length(); i += 50) {
-            if (i + 50 < response.length()) {
-                LOG_INFO("%s\n", response.substring(i, i + 50).c_str());
-            } else {
-                LOG_INFO("%s\n", response.substring(i, response.length()).c_str());
-            }
-        }
-    }
+    logLongString(response);
+
     http.end();
     LOG_INFO("Called HTTP end\n");
     if (httpResponseCode < 0)

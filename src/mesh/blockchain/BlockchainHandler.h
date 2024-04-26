@@ -64,6 +64,16 @@ class BlockchainHandler
     String executeBlockchainCommand(String commandType, String command);
 
   private:
+
+    /**
+     * Checks if the wallet configuration is valid.
+     *
+     * This method verifies if the wallet is enabled and both the public and private keys are of the correct length.
+     *
+     * @return True if the wallet configuration is valid, otherwise false.
+     */
+    bool isWalletConfigValid();
+
     /**
      * Generates a binary hash from the given HashVector.
      *
