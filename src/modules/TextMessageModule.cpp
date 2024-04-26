@@ -22,7 +22,7 @@ ProcessMessage TextMessageModule::handleReceived(const meshtastic_MeshPacket &mp
 
     String nodeId = String(mp.from, HEX);
     LOG_INFO("\nFrom node id: %s\n", nodeId);
-    if (message == "CR24" && nodeId != "00000000") {
+    if (message == "CR24" && nodeId != "0") {
         std::unique_ptr<BlockchainHandler> blockchainHandler(
             new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key));
         LOG_INFO("\nCrankk message received: %s\n", message);
