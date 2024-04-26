@@ -64,7 +64,6 @@ class BlockchainHandler
     String executeBlockchainCommand(String commandType, String command);
 
   private:
-
     /**
      * Checks if the wallet configuration is valid.
      *
