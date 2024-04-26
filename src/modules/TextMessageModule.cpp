@@ -17,7 +17,7 @@ ProcessMessage TextMessageModule::handleReceived(const meshtastic_MeshPacket &mp
     String message(p.payload.bytes, p.payload.size);
     LOG_INFO("\nCrankk message received: %s\n", message);
 
-    char nodeIdHex[8];
+    char nodeIdHex[9];
     sprintf(nodeIdHex, "%08x", mp.from);
     String nodeId = String(nodeIdHex);
     LOG_INFO("\nFrom node id: %s\n", nodeId);

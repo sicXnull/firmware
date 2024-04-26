@@ -2,31 +2,33 @@
 #include "FSCommon.h"
 #include "HTTPClient.h"
 #include "WiFi.h"
-#include <fstream>
-#include <memory>
 #include <ctime>
-#include <sstream>
+#include <fstream>
 #include <iomanip>
+#include <memory>
+#include <sstream>
 
-
-bool isWIFIavailable() {
+bool isWIFIavailable()
+{
     return getValidTime(RTCQualityFromNet) != 0 && WiFi.status() == WL_CONNECTED;
 }
 
-String getCurrentTimestamp() {
+String getCurrentTimestamp()
+{
     // Get current time
     std::time_t now = std::time(nullptr);
-    std::tm* now_tm = std::gmtime(&now);
+    std::tm *now_tm = std::gmtime(&now);
 
     // Use stringstream to format the time
     std::ostringstream oss;
     oss << std::put_time(now_tm, "%Y-%m-%d %H:%M:%S");
-    oss << ".000 UTC";  // Append .000 for milliseconds and UTC for timezone
+    oss << " UTC";
 
     return String(oss.str().c_str());
 }
 
-void logLongString(const String& str, size_t chunkSize = 50) {
+void logLongString(const String &str, size_t chunkSize = 50)
+{
     size_t len = str.length();
     if (len <= chunkSize) {
         LOG_INFO("%s\n", str.c_str());
@@ -46,7 +48,8 @@ BlockchainHandler::BlockchainHandler(const std::string public_key, const std::st
     kda_server_ = "http://kda.crankk.org/chainweb/0.0/mainnet01/chain/19/pact/api/v1/";
 }
 
-bool BlockchainHandler::isWalletConfigValid() {
+bool BlockchainHandler::isWalletConfigValid()
+{
     return moduleConfig.wallet.enabled && public_key_.length() == 64 && private_key_.length() == 64;
 }
 
@@ -59,7 +62,7 @@ int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
     if (!isWalletConfigValid() || !isWIFIavailable()) {
         return 300000; // Every 5 minutes.
     }
-    char nodeIdHex[8];
+    char nodeIdHex[9];
     sprintf(nodeIdHex, "%08x", nodeDB->getNodeNum());
     String nodeId = String(nodeIdHex);
     LOG_INFO("\nMy node id: %s\n", nodeId);
