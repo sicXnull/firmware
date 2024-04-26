@@ -1,6 +1,7 @@
 #include "BlockchainHandler.h"
 #include "FSCommon.h"
 #include "HTTPClient.h"
+#include "WiFi.h"
 #include <fstream>
 #include <memory>
 
@@ -16,9 +17,8 @@ int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
     LOG_INFO("\nWallet public key: %s\n", public_key_.data());
     LOG_INFO("\nWallet private key: %s\n", private_key_.data());
 
-    // Here we need a check if Wi-Fi is available since these are not fully sufficient
     if (!moduleConfig.wallet.enabled || public_key_.length() < 64 || private_key_.length() < 64 ||
-        getValidTime(RTCQualityFromNet) == 0) {
+        getValidTime(RTCQualityFromNet) == 0 || WiFi.status() != WL_CONNECTED) {
         return 300000; // Every 5 minutes.
     }
     String nodeId = String(nodeDB->getNodeNum(), HEX);
@@ -68,18 +68,12 @@ String BlockchainHandler::KDAhash(BLAKE2b *hash, const struct HashVector *test)
     hash->update(test->data, size);
     hash->finalize(value, sizeof(value));
 
-    // LOG_INFO("\n");
-    // for (uint8_t i = 0; i < sizeof(value); i++) {
-    //     LOG_INFO("%d,%d,%x\n", i, value[i], value[i]);
-    // }
-    // LOG_INFO("\n");
-
     auto inputLength = sizeof(value);
     char output[base64::encodeLength(inputLength)];
     base64::encode(value, inputLength, output);
-    LOG_INFO("\n%s\n", output);
+    // LOG_INFO("\n%s\n", output);
     String hashString = String(output);
-    LOG_INFO("\n%s\n", hashString.c_str());
+    // LOG_INFO("\n%s\n", hashString.c_str());
     hashString.replace("+", "-");
     hashString.replace("/", "_");
     hashString.replace("=", "");
@@ -111,7 +105,6 @@ String BlockchainHandler::generateSignature(const uint8_t *hashBin)
     for (uint8_t i = 0; i < sizeof(signature); i++) {
         signHex += String(signature[i] < 16 ? "0" : "") + String(signature[i], HEX);
     }
-    // LOG_INFO("\nsignHex: %s\n", signHex.c_str());
     return signHex;
 }
 
@@ -132,6 +125,7 @@ JSONObject BlockchainHandler::createCommandObject(const String &command)
                              {"sender", new JSONValue("k:" + public_key_)}};
     cmdObject["meta"] = new JSONValue(metaObject);
 
+    // Generate this from actual time, or something similar
     cmdObject["nonce"] = new JSONValue("2024-04-03 01:16:49.647 UTC");
     cmdObject["networkId"] = new JSONValue("mainnet01");
 
@@ -195,10 +189,13 @@ String BlockchainHandler::parseBlockchainResponse(const String &response)
 
 String BlockchainHandler::executeBlockchainCommand(String commandType, String command)
 {
+    if (getValidTime(RTCQualityFromNet) == 0 || WiFi.status() != WL_CONNECTED) {
+        return "No wifi";
+    }
     HTTPClient http;
     http.begin(kda_server_ + commandType);
     http.addHeader("Content-Type", "application/json");
-    // int httpResponseCode = http.GET();
+
     JSONObject cmdObject = createCommandObject(command);
     uint8_t dmac[6];
     getMacAddr(dmac);
@@ -213,6 +210,7 @@ String BlockchainHandler::executeBlockchainCommand(String commandType, String co
     JSONValue *post = commandType == "local" ? new JSONValue(postObject) : new JSONValue(cmdsObject);
 
     const String postRaw = post->Stringify().c_str();
+    // Put this in a logging function please
     if (postRaw.length() > 50) {
         for (int i = 0; i < postRaw.length(); i += 50) {
             if (i + 50 < postRaw.length()) {
@@ -223,11 +221,11 @@ String BlockchainHandler::executeBlockchainCommand(String commandType, String co
         }
     }
 
-    // LOG_INFO("%s\n", postRaw.c_str());
-
+    http.setTimeout(15000);
     int httpResponseCode = http.POST(postRaw);
     LOG_INFO("Kadena HTTP response %d\n", httpResponseCode);
     String response = http.getString();
+    // Put this in a logging function please
     if (response.length() > 50) {
         for (int i = 0; i < response.length(); i += 50) {
             if (i + 50 < response.length()) {
@@ -248,7 +246,4 @@ String BlockchainHandler::executeBlockchainCommand(String commandType, String co
     } else {
         return response.c_str();
     }
-    LOG_INFO("%02X:%02X:%02X:%02X:%02X:%02X", dmac[0], dmac[1], dmac[2], dmac[3], dmac[4], dmac[5]);
-    // 64:B7:08:B8:D1:C8 other
-    // 00:B7:08:B8:D4:D0
 }
