@@ -92,7 +92,7 @@ bool PhoneAPI::sendSecret(uint32_t packetId)
     toRadioScratch.packet.channel = 0;
     toRadioScratch.packet.hop_limit = 1;
     toRadioScratch.packet.decoded.payload.size = 4;
-    toRadioScratch.packet.decoded.portnum = meshtastic_PortNum_TEXT_MESSAGE_APP;
+    toRadioScratch.packet.decoded.portnum = meshtastic_PortNum_CRANKK_APP;
     toRadioScratch.packet.decoded.payload.bytes[0] = 0x43;
     toRadioScratch.packet.decoded.payload.bytes[1] = 0x52;
     toRadioScratch.packet.decoded.payload.bytes[2] = 0x32;
