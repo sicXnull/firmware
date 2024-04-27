@@ -34,10 +34,10 @@ ProcessMessage CrankkModule::handleReceived(const meshtastic_MeshPacket &mp)
 
     // We only store/display messages destined for us.
     // Keep a copy of the most recent text message.
-    devicestate.rx_text_message = mp;
-    devicestate.has_rx_text_message = true;
+    // devicestate.rx_text_message = mp;
+    // devicestate.has_rx_text_message = true;
 
-    powerFSM.trigger(EVENT_RECEIVED_MSG);
+    // powerFSM.trigger(EVENT_RECEIVED_MSG);
     // notifyObservers(&mp);
 
     return ProcessMessage::CONTINUE; // Let others look at this message also if they want
@@ -45,6 +45,6 @@ ProcessMessage CrankkModule::handleReceived(const meshtastic_MeshPacket &mp)
 
 bool CrankkModule::wantPacket(const meshtastic_MeshPacket *p)
 {
-    return true;
+    return p->decoded.portnum == meshtastic_PortNum_CRANKK_APP;
     // return MeshService::isTextPayload(p);
 }
