@@ -1,24 +1,44 @@
 #pragma once
-void registerHandlers(HTTPServer *insecureServer, HTTPSServer *secureServer);
+/*
+  Including the esp32_https_server library will trigger a compile time error. I've
+  tracked it down to a reoccurrance of this bug:
+    https://gcc.gnu.org/bugzilla/show_bug.cgi?id=57824
+  The work around is described here:
+    https://forums.xilinx.com/t5/Embedded-Development-Tools/Error-with-Standard-Libaries-in-Zynq/td-p/450032
+
+  Long story short is we need "#undef str" before including the esp32_https_server.
+    - Jm Casler (jm@casler.org) Oct 2020
+*/
+#undef str
+
+// Includes for the https server
+//   https://github.com/fhessel/esp32_https_server
+#include <HTTPRequest.hpp>
+#include <HTTPResponse.hpp>
+#include <HTTPSServer.hpp>
+#include <HTTPServer.hpp>
+#include <SSLCert.hpp>
+
+void registerHandlers(httpsserver::HTTPServer *insecureServer, httpsserver::HTTPSServer *secureServer);
 
 // Declare some handler functions for the various URLs on the server
-void handleAPIv1FromRadio(HTTPRequest *req, HTTPResponse *res);
-void handleAPIv1ToRadio(HTTPRequest *req, HTTPResponse *res);
-void handleHotspot(HTTPRequest *req, HTTPResponse *res);
-void handleStatic(HTTPRequest *req, HTTPResponse *res);
-void handleRestart(HTTPRequest *req, HTTPResponse *res);
-void handleFormUpload(HTTPRequest *req, HTTPResponse *res);
-void handleScanNetworks(HTTPRequest *req, HTTPResponse *res);
-void handleFsBrowseStatic(HTTPRequest *req, HTTPResponse *res);
-void handleFsDeleteStatic(HTTPRequest *req, HTTPResponse *res);
-void handleBlinkLED(HTTPRequest *req, HTTPResponse *res);
-void handleReport(HTTPRequest *req, HTTPResponse *res);
-void handleUpdateFs(HTTPRequest *req, HTTPResponse *res);
-void handleDeleteFsContent(HTTPRequest *req, HTTPResponse *res);
-void handleFs(HTTPRequest *req, HTTPResponse *res);
-void handleAdmin(HTTPRequest *req, HTTPResponse *res);
-void handleAdminSettings(HTTPRequest *req, HTTPResponse *res);
-void handleAdminSettingsApply(HTTPRequest *req, HTTPResponse *res);
+void handleAPIv1FromRadio(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
+void handleAPIv1ToRadio(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
+void handleHotspot(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
+void handleStatic(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
+void handleRestart(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
+void handleFormUpload(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
+void handleScanNetworks(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
+void handleFsBrowseStatic(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
+void handleFsDeleteStatic(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
+void handleBlinkLED(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
+void handleReport(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
+void handleUpdateFs(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
+void handleDeleteFsContent(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
+void handleFs(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
+void handleAdmin(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
+void handleAdminSettings(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
+void handleAdminSettingsApply(httpsserver::HTTPRequest *req, httpsserver::HTTPResponse *res);
 
 // Interface to the PhoneAPI to access the protobufs with messages
 class HttpAPI : public PhoneAPI

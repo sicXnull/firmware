@@ -3,6 +3,7 @@
 #include "NodeDB.h"
 #include "graphics/Screen.h"
 #include "main.h"
+#include "mesh/http/ContentHandler.h"
 #include "mesh/http/WebServer.h"
 #include "mesh/wifi/WiFiAPClient.h"
 #include "sleep.h"
@@ -20,29 +21,8 @@
 #include <Preferences.h>
 Preferences prefs;
 
-/*
-  Including the esp32_https_server library will trigger a compile time error. I've
-  tracked it down to a reoccurrance of this bug:
-    https://gcc.gnu.org/bugzilla/show_bug.cgi?id=57824
-  The work around is described here:
-    https://forums.xilinx.com/t5/Embedded-Development-Tools/Error-with-Standard-Libaries-in-Zynq/td-p/450032
-
-  Long story short is we need "#undef str" before including the esp32_https_server.
-    - Jm Casler (jm@casler.org) Oct 2020
-*/
-#undef str
-
-// Includes for the https server
-//   https://github.com/fhessel/esp32_https_server
-#include <HTTPRequest.hpp>
-#include <HTTPResponse.hpp>
-#include <HTTPSServer.hpp>
-#include <HTTPServer.hpp>
-#include <SSLCert.hpp>
-
 // The HTTPS Server comes in a separate namespace. For easier use, include it here.
 using namespace httpsserver;
-#include "mesh/http/ContentHandler.h"
 
 static SSLCert *cert;
 static HTTPSServer *secureServer;
