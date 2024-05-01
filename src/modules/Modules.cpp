@@ -73,6 +73,9 @@
 #if !MESHTASTIC_EXCLUDE_STOREFORWARD
 #include "modules/StoreForwardModule.h"
 #endif
+#if !MESHTASTIC_EXCLUDE_CRANKK
+#include "modules/esp32/CrankkModule.h"
+#endif
 #endif
 #if defined(ARCH_ESP32) || defined(ARCH_NRF52) || defined(ARCH_RP2040)
 #if !MESHTASTIC_EXCLUDE_EXTERNALNOTIFICATION
@@ -216,6 +219,14 @@ void setupModules()
 #endif
 #if !MESHTASTIC_EXCLUDE_PAXCOUNTER
         paxcounterModule = new PaxcounterModule();
+#endif
+#if !MESHTASTIC_EXCLUDE_CRANKK
+        crankkModule = new CrankkModule();
+#endif
+#endif
+#if defined(ARCH_ESP32) || defined(ARCH_PORTDUINO)
+#if !MESHTASTIC_EXCLUDE_STOREFORWARD
+        storeForwardModule = new StoreForwardModule();
 #endif
 #endif
 #if defined(ARCH_ESP32) || defined(ARCH_PORTDUINO)
