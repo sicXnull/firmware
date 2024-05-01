@@ -20,7 +20,7 @@ DeviceState versions used to be defined in the .proto file but really only this 
 #define SEGMENT_DEVICESTATE 4
 #define SEGMENT_CHANNELS 8
 
-#define DEVICESTATE_CUR_VER 22
+#define DEVICESTATE_CUR_VER 26
 #define DEVICESTATE_MIN_VER DEVICESTATE_CUR_VER
 
 extern meshtastic_DeviceState devicestate;
@@ -229,6 +229,7 @@ extern uint32_t error_address;
 #define Module_Config_size                                                                                                       \
     (ModuleConfig_CannedMessageConfig_size + ModuleConfig_ExternalNotificationConfig_size + ModuleConfig_MQTTConfig_size +       \
      ModuleConfig_RangeTestConfig_size + ModuleConfig_SerialConfig_size + ModuleConfig_StoreForwardConfig_size +                 \
-     ModuleConfig_TelemetryConfig_size + ModuleConfig_size)
+     ModuleConfig_TelemetryConfig_size + ModuleConfig_PaxcounterConfig_size + ModuleConfig_WalletConfig_size +                   \
+     ModuleConfig_size)
 
 // Please do not remove this comment, it makes trunk and compiler happy at the same time.

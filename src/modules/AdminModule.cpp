@@ -534,6 +534,11 @@ void AdminModule::handleSetModuleConfig(const meshtastic_ModuleConfig &c)
         moduleConfig.has_paxcounter = true;
         moduleConfig.paxcounter = c.payload_variant.paxcounter;
         break;
+    case meshtastic_ModuleConfig_wallet_tag:
+        LOG_INFO("Setting module config: Wallet\n");
+        moduleConfig.has_wallet = true;
+        moduleConfig.wallet = c.payload_variant.wallet;
+        break;
     }
 
     saveChanges(SEGMENT_MODULECONFIG);
@@ -688,6 +693,11 @@ void AdminModule::handleGetModuleConfig(const meshtastic_MeshPacket &req, const 
             LOG_INFO("Getting module config: Paxcounter\n");
             res.get_module_config_response.which_payload_variant = meshtastic_ModuleConfig_paxcounter_tag;
             res.get_module_config_response.payload_variant.paxcounter = moduleConfig.paxcounter;
+            break;
+        case meshtastic_AdminMessage_ModuleConfigType_WALLET_CONFIG:
+            LOG_INFO("Getting module config: Wallet\n");
+            res.get_module_config_response.which_payload_variant = meshtastic_ModuleConfig_wallet_tag;
+            res.get_module_config_response.payload_variant.wallet = moduleConfig.wallet;
             break;
         }
 
