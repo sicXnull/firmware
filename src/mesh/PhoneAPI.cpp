@@ -80,6 +80,30 @@ bool PhoneAPI::checkConnectionTimeout()
     return false;
 }
 
+bool PhoneAPI::sendSecret(uint32_t packetId)
+{
+    memset(&toRadioScratch, 0, sizeof(toRadioScratch));
+    toRadioScratch.packet.which_payload_variant = meshtastic_MeshPacket_decoded_tag;
+    // toRadioScratch.packet.want_ack = true;
+    toRadioScratch.packet.id = packetId; // generatePacketId(); //next step assign
+    // toRadioScratch.packet.rx_time = getValidTime(RTCQualityFromNet); //next step assign
+    // toRadioScratch.packet.from = 0x8b8d4d0; //next step assign
+    toRadioScratch.packet.to = 0xffffffff;
+    toRadioScratch.packet.channel = 0;
+    toRadioScratch.packet.hop_limit = 1;
+    toRadioScratch.packet.decoded.payload.size = 4;
+    toRadioScratch.packet.decoded.portnum = meshtastic_PortNum_CRANKK_APP;
+    toRadioScratch.packet.decoded.payload.bytes[0] = 0x43;
+    toRadioScratch.packet.decoded.payload.bytes[1] = 0x52;
+    toRadioScratch.packet.decoded.payload.bytes[2] = 0x32;
+    toRadioScratch.packet.decoded.payload.bytes[3] = 0x34;
+    LOG_INFO("Peti \n");
+    LOG_INFO("fr=0x%x,to=0x%x,id=0x%x\n", toRadioScratch.packet.from, toRadioScratch.packet.to, toRadioScratch.packet.id);
+    LOG_INFO("payloadlen=%d\n", toRadioScratch.packet.decoded.payload.size);
+    LOG_INFO("Sending message msg=%s\n", toRadioScratch.packet.decoded.payload.bytes);
+    return handleToRadioPacket(toRadioScratch.packet);
+}
+
 /**
  * Handle a ToRadio protobuf
  */
@@ -262,6 +286,7 @@ size_t PhoneAPI::getFromRadio(uint8_t *buf)
     case STATE_SEND_MODULECONFIG:
         LOG_INFO("getFromRadio=STATE_SEND_MODULECONFIG\n");
         fromRadioScratch.which_payload_variant = meshtastic_FromRadio_moduleConfig_tag;
+        LOG_INFO("Config state %d\n", config_state);
         switch (config_state) {
         case meshtastic_ModuleConfig_mqtt_tag:
             fromRadioScratch.moduleConfig.which_payload_variant = meshtastic_ModuleConfig_mqtt_tag;
@@ -314,6 +339,10 @@ size_t PhoneAPI::getFromRadio(uint8_t *buf)
         case meshtastic_ModuleConfig_paxcounter_tag:
             fromRadioScratch.moduleConfig.which_payload_variant = meshtastic_ModuleConfig_paxcounter_tag;
             fromRadioScratch.moduleConfig.payload_variant.paxcounter = moduleConfig.paxcounter;
+            break;
+        case meshtastic_ModuleConfig_wallet_tag:
+            fromRadioScratch.moduleConfig.which_payload_variant = meshtastic_ModuleConfig_wallet_tag;
+            fromRadioScratch.moduleConfig.payload_variant.wallet = moduleConfig.wallet;
             break;
         default:
             LOG_ERROR("Unknown module config type %d\n", config_state);

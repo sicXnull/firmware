@@ -27,6 +27,7 @@
 #if !MESHTASTIC_EXCLUDE_REMOTEHARDWARE
 #include "modules/RemoteHardwareModule.h"
 #endif
+#include "modules/CrankkModule.h"
 #include "modules/RoutingModule.h"
 #include "modules/TextMessageModule.h"
 #if !MESHTASTIC_EXCLUDE_TRACEROUTE
@@ -88,6 +89,7 @@ void setupModules()
         waypointModule = new WaypointModule();
 #endif
         textMessageModule = new TextMessageModule();
+        crankkModule = new CrankkModule();
 #if !MESHTASTIC_EXCLUDE_TRACEROUTE
         traceRouteModule = new TraceRouteModule();
 #endif
