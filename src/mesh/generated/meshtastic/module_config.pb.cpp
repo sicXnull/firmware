@@ -23,6 +23,7 @@ PB_BIND(meshtastic_ModuleConfig_NeighborInfoConfig, meshtastic_ModuleConfig_Neig
 
 PB_BIND(meshtastic_ModuleConfig_DetectionSensorConfig, meshtastic_ModuleConfig_DetectionSensorConfig, AUTO)
 
+PB_BIND(meshtastic_ModuleConfig_WalletConfig, meshtastic_ModuleConfig_WalletConfig, AUTO)
 
 PB_BIND(meshtastic_ModuleConfig_AudioConfig, meshtastic_ModuleConfig_AudioConfig, AUTO)
 
