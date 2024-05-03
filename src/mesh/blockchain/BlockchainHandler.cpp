@@ -3,6 +3,8 @@
 #include "FSCommon.h"
 #include "HTTPClient.h"
 #include "WiFi.h"
+#include "memGet.h"
+#include "mesh/wifi/WiFiAPClient.h"
 #include <cstdio>
 #include <ctime>
 #include <fstream>
@@ -19,11 +21,6 @@ char *strptime(const char *str, const char *format, struct tm *tm)
         return (char *)(str + strlen(str));
     }
     return NULL;
-}
-
-bool isWIFIavailable()
-{
-    return getValidTime(RTCQualityFromNet) != 0 && WiFi.status() == WL_CONNECTED;
 }
 
 String getCurrentTimestamp()
@@ -72,7 +69,7 @@ int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
     LOG_INFO("\nWallet public key: %s\n", public_key_.data());
     LOG_INFO("\nWallet private key: %s\n", private_key_.data());
 
-    if (!isWalletConfigValid() || !isWIFIavailable()) {
+    if (!isWalletConfigValid() || !isWifiAvailable()) {
         return 300000; // Every 5 minutes.
     }
     char nodeIdHex[9];
@@ -93,6 +90,8 @@ int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
     } else { // node exists, not due for sending
         LOG_INFO("\n%s\n", "DON'T SEND");
     }
+    auto newHeap = memGet.getFreeHeap();
+    LOG_INFO("Free heap: %d\n", newHeap);
     return 300000; // Every 5 minutes. That should be enough for previous txn to be complete
 }
 
@@ -215,6 +214,7 @@ JSONObject BlockchainHandler::preparePostObject(const JSONObject &cmdObject, con
     sigs.push_back(new JSONValue(sigObject));
     postObject["sigs"] = new JSONValue(sigs);
 
+    delete cmd;
     return postObject;
 }
 
@@ -236,13 +236,14 @@ String BlockchainHandler::parseBlockchainResponse(const String &response)
     } else {
         sendValue = "no node";
     }
+    delete response_value;
     LOG_INFO("Send value before return: %s\n", sendValue);
     return sendValue;
 }
 
 String BlockchainHandler::executeBlockchainCommand(String commandType, String command)
 {
-    if (!isWIFIavailable()) {
+    if (!isWifiAvailable()) {
         return "No wifi";
     }
     HTTPClient http;
@@ -250,17 +251,18 @@ String BlockchainHandler::executeBlockchainCommand(String commandType, String co
     http.addHeader("Content-Type", "application/json");
 
     JSONObject cmdObject = createCommandObject(command);
-    uint8_t dmac[6];
-    getMacAddr(dmac);
-
     JSONObject postObject = preparePostObject(cmdObject, commandType);
 
-    JSONArray cmds;
-    JSONObject cmdsObject;
-    cmds.push_back(new JSONValue(postObject));
-    cmdsObject["cmds"] = new JSONValue(cmds);
-
-    JSONValue *post = commandType == "local" ? new JSONValue(postObject) : new JSONValue(cmdsObject);
+    JSONValue *post;
+    if (commandType == "local") {
+        post = new JSONValue(postObject);
+    } else {
+        JSONArray cmds;
+        JSONObject cmdsObject;
+        cmds.push_back(new JSONValue(postObject));
+        cmdsObject["cmds"] = new JSONValue(cmds);
+        post = new JSONValue(cmdsObject);
+    }
 
     const String postRaw = post->Stringify().c_str();
     logLongString(postRaw);
@@ -272,6 +274,7 @@ String BlockchainHandler::executeBlockchainCommand(String commandType, String co
     logLongString(response);
 
     http.end();
+    delete post;
     LOG_INFO("Called HTTP end\n");
     if (httpResponseCode < 0)
         return "";
