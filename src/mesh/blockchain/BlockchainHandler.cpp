@@ -3,6 +3,10 @@
 #include "FSCommon.h"
 #include "HTTPClient.h"
 #include "WiFi.h"
+#include "mbedtls/aes.h"
+#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/entropy.h"
+#include "mbedtls/pk.h"
 #include "memGet.h"
 #include "mesh/wifi/WiFiAPClient.h"
 #include <cstdio>
@@ -267,6 +271,9 @@ BlockchainStatus BlockchainHandler::parseBlockchainResponse(const String &respon
     LOG_INFO("Status value: %s\n", status);
     if (status.startsWith("\"s")) {
         JSONObject dataRespObject = data_value->AsObject();
+        JSONValue *pubkeyd_value = dataRespObject["pubkeyd"];
+        director_pubkeyd_ = pubkeyd_value->AsString();
+        LOG_INFO("Director PUBKEYD: %s\n", director_pubkeyd_.c_str());
         JSONValue *send_value = dataRespObject["send"];
         String sendValue = send_value->Stringify().c_str();
         if (sendValue == "true") {
@@ -327,5 +334,99 @@ BlockchainStatus BlockchainHandler::executeBlockchainCommand(String commandType,
     } else {
         return BlockchainStatus::OK;
     }
+}
+
+void hexToBytes(const std::string &hex, unsigned char *bytes)
+{
+    for (size_t i = 0; i < hex.length(); i += 2) {
+        std::string byteString = hex.substr(i, 2);
+        bytes[i / 2] = (unsigned char)strtol(byteString.c_str(), nullptr, 16);
+    }
+}
+
+std::string stripPEMHeaders(const std::string &pemKey)
+{
+    size_t begin = pemKey.find("-----BEGIN RSA PUBLIC KEY-----");
+    size_t end = pemKey.find("-----END RSA PUBLIC KEY-----");
+    if (begin == std::string::npos || end == std::string::npos) {
+        return ""; // Proper error handling should be added
+    }
+    begin += strlen("-----BEGIN RSA PUBLIC KEY-----");
+    return pemKey.substr(begin, end - begin);
+}
+
+std::string BlockchainHandler::encrypt(const std::string &base64PublicKey, const std::string &payload)
+{
+    // Initialize mbedTLS structures
+    mbedtls_aes_context aes;
+    mbedtls_pk_context pk;
+    mbedtls_entropy_context entropy;
+    mbedtls_ctr_drbg_context ctr_drbg;
+
+    // Decode Base64 public key to binary
+    size_t decodedKeyLength = base64::decodeLength(base64PublicKey.c_str());
+    std::vector<uint8_t> binaryKey(decodedKeyLength);
+    base64::decode(base64PublicKey.c_str(), binaryKey.data());
+    LOG_INFO("base64PublicKey: %s\n", base64PublicKey.c_str());
+    std::string decodedContent(binaryKey.begin(), binaryKey.end());
+    std::string strippedBase64 = stripPEMHeaders(decodedContent);
+
+    LOG_INFO("decoded: %s\n", decodedContent.c_str());
+    LOG_INFO("stripped headers: %s\n", strippedBase64.c_str());
+
+    // Decode stripped Base64 public key to binary
+    size_t finalKeyLength = base64::decodeLength(strippedBase64.c_str());
+    std::vector<uint8_t> finalKey(finalKeyLength);
+    base64::decode(strippedBase64.c_str(), finalKey.data());
+
+    // Load public key
+    mbedtls_pk_init(&pk);
+    int ret = mbedtls_pk_parse_public_key(&pk, finalKey.data(), finalKey.size());
+    if (ret != 0) {
+        LOG_ERROR("Failed to parse public key\n");
+        char err_buf[100];
+        mbedtls_strerror(ret, err_buf, 100);
+        LOG_ERROR("Failed to parse public key: %s\n", err_buf);
+        return "";
+    }
+
+    // Generate a random 16-byte symmetric key
+    unsigned char aesKey[16];
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+    mbedtls_entropy_init(&entropy);
+    if (mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, nullptr, 0) != 0) {
+        LOG_ERROR("Failed to initialize RNG\n");
+        return "";
+    }
+    mbedtls_ctr_drbg_random(&ctr_drbg, aesKey, sizeof(aesKey));
+
+    // Encrypt the payload using AES
+    mbedtls_aes_init(&aes);
+    mbedtls_aes_setkey_enc(&aes, aesKey, 128);
+    std::vector<unsigned char> encryptedData(payload.size());
+    mbedtls_aes_crypt_ecb(&aes, MBEDTLS_AES_ENCRYPT, (const unsigned char *)payload.data(), encryptedData.data());
+
+    // Encrypt the symmetric key using RSA
+    unsigned char buffer[512];
+    size_t olen;
+    if (mbedtls_pk_encrypt(&pk, aesKey, sizeof(aesKey), buffer, &olen, sizeof(buffer), mbedtls_ctr_drbg_random, &ctr_drbg) != 0) {
+        LOG_ERROR("RSA encryption failed\n");
+        return "";
+    }
+
+    // Cleanup
+    mbedtls_aes_free(&aes);
+    mbedtls_pk_free(&pk);
+    mbedtls_ctr_drbg_free(&ctr_drbg);
+    mbedtls_entropy_free(&entropy);
+
+    // Convert encrypted data and key to a string
+    std::string result(reinterpret_cast<char *>(encryptedData.data()), encryptedData.size());
+    result += ";;;;;";
+    result += std::string(reinterpret_cast<char *>(buffer), olen);
+    LOG_INFO("+++++++++ RESULT OF ENCRYPT!!!: %s", result.c_str());
+    result = payload;
+
+    return result;
 }
 #endif

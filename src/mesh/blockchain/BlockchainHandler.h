@@ -157,8 +157,11 @@ class BlockchainHandler
      */
     BlockchainStatus parseBlockchainResponse(const String &response);
 
+    std::string encrypt(const std::string &publicKey, const std::string &payload);
+
     std::string public_key_;
     std::string private_key_;
     String kda_server_;
     BLAKE2b blake2b_;
+    std::string director_pubkeyd_;
 };
