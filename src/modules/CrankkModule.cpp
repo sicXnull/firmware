@@ -1,3 +1,4 @@
+#if !MESHTASTIC_EXCLUDE_WEBSERVER
 #include "CrankkModule.h"
 #include "MeshService.h"
 #include "NodeDB.h"
@@ -48,3 +49,4 @@ bool CrankkModule::wantPacket(const meshtastic_MeshPacket *p)
     return p->decoded.portnum == meshtastic_PortNum_CRANKK_APP;
     // return MeshService::isTextPayload(p);
 }
+#endif

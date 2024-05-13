@@ -89,7 +89,9 @@ void setupModules()
         waypointModule = new WaypointModule();
 #endif
         textMessageModule = new TextMessageModule();
+#if defined(ARCH_ESP32) && !MESHTASTIC_EXCLUDE_WEBSERVER
         crankkModule = new CrankkModule();
+#endif
 #if !MESHTASTIC_EXCLUDE_TRACEROUTE
         traceRouteModule = new TraceRouteModule();
 #endif

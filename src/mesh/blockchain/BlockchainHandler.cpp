@@ -1,12 +1,25 @@
+#if !MESHTASTIC_EXCLUDE_WEBSERVER
 #include "BlockchainHandler.h"
 #include "FSCommon.h"
 #include "HTTPClient.h"
 #include "WiFi.h"
+#include <cstdio>
 #include <ctime>
 #include <fstream>
 #include <iomanip>
 #include <memory>
 #include <sstream>
+
+// Redefine strptime in your source to avoid IRAM issue
+char *strptime(const char *str, const char *format, struct tm *tm)
+{
+    if (sscanf(str, format, &tm->tm_year, &tm->tm_mon, &tm->tm_mday, &tm->tm_hour, &tm->tm_min, &tm->tm_sec) == 6) {
+        tm->tm_year -= 1900; // Adjust year to be relative to 1900
+        tm->tm_mon -= 1;     // Adjust month to be 0-based
+        return (char *)(str + strlen(str));
+    }
+    return NULL;
+}
 
 bool isWIFIavailable()
 {
@@ -270,3 +283,4 @@ String BlockchainHandler::executeBlockchainCommand(String commandType, String co
         return response.c_str();
     }
 }
+#endif
