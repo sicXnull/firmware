@@ -170,7 +170,7 @@ JSONObject BlockchainHandler::createCommandObject(const String &command)
     signers.push_back(new JSONValue(signerObject));
     cmdObject["signers"] = new JSONValue(signers);
 
-    JSONObject metaObject = {{"creationTime", new JSONValue(getValidTime(RTCQualityFromNet))},
+    JSONObject metaObject = {{"creationTime", new JSONValue((uint)getValidTime(RTCQualityFromNet))},
                              {"ttl", new JSONValue(28800)},
                              {"chainId", new JSONValue("19")},
                              {"gasPrice", new JSONValue(0.00001)},

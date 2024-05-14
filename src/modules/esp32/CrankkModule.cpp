@@ -1,4 +1,4 @@
-#if !MESHTASTIC_EXCLUDE_WEBSERVER
+#if defined(ARCH_ESP32) && !MESHTASTIC_EXCLUDE_WEBSERVER
 #include "CrankkModule.h"
 #include "MeshService.h"
 #include "NodeDB.h"
