@@ -1,8 +1,9 @@
+#include "configuration.h"
+#if defined(ARCH_ESP32) && !MESHTASTIC_EXCLUDE_CRANKK
 #include "CrankkModule.h"
 #include "MeshService.h"
 #include "NodeDB.h"
 #include "PowerFSM.h"
-#include "configuration.h"
 #include "mesh/blockchain/BlockchainHandler.h"
 
 CrankkModule *crankkModule;
@@ -48,3 +49,4 @@ bool CrankkModule::wantPacket(const meshtastic_MeshPacket *p)
     return p->decoded.portnum == meshtastic_PortNum_CRANKK_APP;
     // return MeshService::isTextPayload(p);
 }
+#endif
