@@ -3,7 +3,6 @@
 #include "NodeDB.h"
 #include "PowerFSM.h"
 #include "configuration.h"
-#include "mesh/blockchain/BlockchainHandler.h"
 
 TextMessageModule *textMessageModule;
 

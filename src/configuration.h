@@ -250,6 +250,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // Turn off all optional modules
 #ifdef MESHTASTIC_EXCLUDE_MODULES
 #define MESHTASTIC_EXCLUDE_AUDIO 1
+#define MESHTASTIC_EXCLUDE_CRANKK 1
 #define MESHTASTIC_EXCLUDE_DETECTIONSENSOR 1
 #define MESHTASTIC_EXCLUDE_ENVIRONMENTAL_SENSOR 1
 #define MESHTASTIC_EXCLUDE_EXTERNALNOTIFICATION 1
