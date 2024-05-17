@@ -27,7 +27,6 @@
 #if !MESHTASTIC_EXCLUDE_REMOTEHARDWARE
 #include "modules/RemoteHardwareModule.h"
 #endif
-#include "modules/CrankkModule.h"
 #include "modules/RoutingModule.h"
 #include "modules/TextMessageModule.h"
 #if !MESHTASTIC_EXCLUDE_TRACEROUTE
@@ -59,6 +58,9 @@
 #if !MESHTASTIC_EXCLUDE_STOREFORWARD
 #include "modules/esp32/StoreForwardModule.h"
 #endif
+#if !MESHTASTIC_EXCLUDE_CRANKK
+#include "modules/esp32/CrankkModule.h"
+#endif
 #endif
 #if defined(ARCH_ESP32) || defined(ARCH_NRF52) || defined(ARCH_RP2040)
 #if !MESHTASTIC_EXCLUDE_EXTERNALNOTIFICATION
@@ -89,7 +91,6 @@ void setupModules()
         waypointModule = new WaypointModule();
 #endif
         textMessageModule = new TextMessageModule();
-        crankkModule = new CrankkModule();
 #if !MESHTASTIC_EXCLUDE_TRACEROUTE
         traceRouteModule = new TraceRouteModule();
 #endif
@@ -167,6 +168,9 @@ void setupModules()
 #endif
 #if !MESHTASTIC_EXCLUDE_PAXCOUNTER
         paxcounterModule = new PaxcounterModule();
+#endif
+#if !MESHTASTIC_EXCLUDE_CRANKK
+        crankkModule = new CrankkModule();
 #endif
 #endif
 #if defined(ARCH_ESP32) || defined(ARCH_NRF52) || defined(ARCH_RP2040)

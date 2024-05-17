@@ -2,12 +2,12 @@
 #include "BLAKE2b.h"
 #include "NodeDB.h"
 #include "RTC.h"
+#include "Router.h"
 #include "concurrency/Periodic.h"
 #include "configuration.h"
 #include "mesh/NodeDB.h"
 #include "mesh/http/ContentHandler.h"
 #include "mqtt/JSON.h"
-#include "router.h"
 #include "target_specific.h"
 #include <Crypto.h>
 #include <memory>
