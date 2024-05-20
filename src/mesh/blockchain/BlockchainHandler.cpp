@@ -82,8 +82,14 @@ int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
 
     if (resp == "true") { // node exists, due for sending
         uint32_t packetId = generatePacketId();
-        webAPI->sendSecret(packetId);
-        executeBlockchainCommand("send", "(free.mesh03.update-sent \"" + String(packetId, HEX) + "\")");
+        String updateResp = executeBlockchainCommand("send", "(free.mesh03.update-sent \"" + String(packetId, HEX) + "\")");
+        if (updateResp != "error") {
+            // Only send the radio beacon if the update-sent command is successful
+            webAPI->sendSecret(packetId);
+            LOG_INFO("\nUpdate sent successfully: %s\n", updateResp.c_str());
+        } else {
+            LOG_INFO("\nUpdate sent failed: %s\n", updateResp.c_str());
+        }
     } else if (resp.startsWith("no")) { // node doesn't exist, insert it
         resp = executeBlockchainCommand("send", "(free.mesh03.insert-my-node \"" + nodeId + "\")");
         LOG_INFO("\nNode insert local response: %s\n", resp);
