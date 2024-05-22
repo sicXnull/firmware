@@ -52,6 +52,31 @@ void logLongString(const String &str, size_t chunkSize = 50)
     }
 }
 
+// Function to convert enum to string
+std::string blockchainStatusToString(BlockchainStatus status)
+{
+    switch (status) {
+    case BlockchainStatus::OK:
+        return "OK";
+    case BlockchainStatus::NO_WIFI:
+        return "NO_WIFI";
+    case BlockchainStatus::HTTP_ERROR:
+        return "HTTP_ERROR";
+    case BlockchainStatus::EMPTY_RESPONSE:
+        return "EMPTY_RESPONSE";
+    case BlockchainStatus::PARSING_ERROR:
+        return "PARSING_ERROR";
+    case BlockchainStatus::NODE_NOT_FOUND:
+        return "NODE_NOT_FOUND";
+    case BlockchainStatus::READY:
+        return "READY";
+    case BlockchainStatus::NOT_DUE:
+        return "NOT_DUE";
+    default:
+        return "UNKNOWN_STATUS";
+    }
+}
+
 BlockchainHandler::BlockchainHandler(const std::string public_key, const std::string private_key)
     : public_key_(public_key), private_key_(private_key)
 {
@@ -77,24 +102,26 @@ int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
     String nodeId = String(nodeIdHex);
     LOG_INFO("\nMy node id: %s\n", nodeId);
 
-    String resp = executeBlockchainCommand("local", "(free.mesh03.get-my-node)");
-    LOG_INFO("\nResponse: %s\n", resp.c_str());
+    BlockchainStatus status = executeBlockchainCommand("local", "(free.mesh03.get-my-node)");
+    LOG_INFO("\nResponse: %s\n", blockchainStatusToString(status).c_str());
 
-    if (resp == "true") { // node exists, due for sending
+    if (status == BlockchainStatus::READY) { // node exists, due for sending
         uint32_t packetId = generatePacketId();
-        String updateResp = executeBlockchainCommand("send", "(free.mesh03.update-sent \"" + String(packetId, HEX) + "\")");
-        if (updateResp != "error") {
+        status = executeBlockchainCommand("send", "(free.mesh03.update-sent \"" + String(packetId, HEX) + "\")");
+        if (status == BlockchainStatus::OK) {
             // Only send the radio beacon if the update-sent command is successful
             webAPI->sendSecret(packetId);
-            LOG_INFO("\nUpdate sent successfully: %s\n", updateResp.c_str());
+            LOG_INFO("\nUpdate sent successfully\n");
         } else {
-            LOG_INFO("\nUpdate sent failed: %s\n", updateResp.c_str());
+            LOG_INFO("\nUpdate sent failed: %s\n", blockchainStatusToString(status).c_str());
         }
-    } else if (resp.startsWith("no")) { // node doesn't exist, insert it
-        resp = executeBlockchainCommand("send", "(free.mesh03.insert-my-node \"" + nodeId + "\")");
-        LOG_INFO("\nNode insert local response: %s\n", resp);
-    } else { // node exists, not due for sending
+    } else if (status == BlockchainStatus::NODE_NOT_FOUND) { // node doesn't exist, insert it
+        status = executeBlockchainCommand("send", "(free.mesh03.insert-my-node \"" + nodeId + "\")");
+        LOG_INFO("\nNode insert local response: %s\n", blockchainStatusToString(status).c_str());
+    } else if (status == BlockchainStatus::NOT_DUE) { // node exists, not due for sending
         LOG_INFO("\n%s\n", "DON'T SEND");
+    } else {
+        LOG_INFO("\nError occurred: %s\n", blockchainStatusToString(status).c_str());
     }
     auto newHeap = memGet.getFreeHeap();
     LOG_INFO("Free heap: %d\n", newHeap);
@@ -224,10 +251,13 @@ JSONObject BlockchainHandler::preparePostObject(const JSONObject &cmdObject, con
     return postObject;
 }
 
-String BlockchainHandler::parseBlockchainResponse(const String &response)
+BlockchainStatus BlockchainHandler::parseBlockchainResponse(const String &response)
 {
-    String sendValue = "false";
+    BlockchainStatus returnStatus = BlockchainStatus::NODE_NOT_FOUND;
     JSONValue *response_value = JSON::Parse(response.c_str());
+    if (response_value == nullptr) {
+        return BlockchainStatus::PARSING_ERROR;
+    }
     JSONObject responseObject = response_value->AsObject();
     JSONValue *result_value = responseObject["result"];
     JSONObject resultObject = result_value->AsObject();
@@ -238,19 +268,21 @@ String BlockchainHandler::parseBlockchainResponse(const String &response)
     if (status.startsWith("\"s")) {
         JSONObject dataRespObject = data_value->AsObject();
         JSONValue *send_value = dataRespObject["send"];
-        sendValue = send_value->Stringify().c_str();
-    } else {
-        sendValue = "no node";
+        String sendValue = send_value->Stringify().c_str();
+        if (sendValue == "true") {
+            returnStatus = BlockchainStatus::READY;
+        } else {
+            returnStatus = BlockchainStatus::NOT_DUE;
+        }
     }
     delete response_value;
-    LOG_INFO("Send value before return: %s\n", sendValue);
-    return sendValue;
+    return returnStatus;
 }
 
-String BlockchainHandler::executeBlockchainCommand(String commandType, String command)
+BlockchainStatus BlockchainHandler::executeBlockchainCommand(String commandType, String command)
 {
     if (!isWifiAvailable()) {
-        return "No wifi";
+        return BlockchainStatus::NO_WIFI;
     }
     HTTPClient http;
     http.begin(kda_server_ + commandType);
@@ -282,14 +314,18 @@ String BlockchainHandler::executeBlockchainCommand(String commandType, String co
     http.end();
     delete post;
     LOG_INFO("Called HTTP end\n");
-    if (httpResponseCode < 0)
-        return "";
+    // Handle HTTP response codes
+    if (httpResponseCode < 0 || (httpResponseCode >= 400 && httpResponseCode <= 599)) {
+        return BlockchainStatus::HTTP_ERROR;
+    }
+    if (httpResponseCode == HTTP_CODE_NO_CONTENT) {
+        return BlockchainStatus::EMPTY_RESPONSE;
+    }
 
     if (commandType == "local") {
-        String sendValue = parseBlockchainResponse(response);
-        return sendValue;
+        return parseBlockchainResponse(response);
     } else {
-        return response.c_str();
+        return BlockchainStatus::OK;
     }
 }
 #endif
