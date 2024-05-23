@@ -23,6 +23,19 @@
 
 #define HASH_SIZE 32
 
+// Define an enumeration for status codes
+enum class BlockchainStatus {
+    OK,
+    NO_WIFI,
+    HTTP_ERROR,
+    EMPTY_RESPONSE,
+    PARSING_ERROR,
+    NODE_NOT_FOUND,
+    READY,
+    NOT_DUE,
+    // Add more specific status codes as needed
+};
+
 class BlockchainHandler
 {
   public:
@@ -59,9 +72,9 @@ class BlockchainHandler
      *
      * @param commandType Identifies the web service for the call.
      * @param command Specifies the blockchain command for execution on the web service.
-     * @return A String object containing the response received from the web service after executing the command.
+     * @return A BlockchainStatus enumeration value indicating the result of the command execution.
      */
-    String executeBlockchainCommand(String commandType, String command);
+    BlockchainStatus executeBlockchainCommand(String commandType, String command);
 
   private:
     /**
@@ -140,9 +153,9 @@ class BlockchainHandler
      * relevant information, making it easier to handle the response programmatically.
      *
      * @param response The blockchain response as a raw string.
-     * @return A String representing the parsed and possibly simplified response.
+     * @return A BlockchainStatus enum value representing the status of the parsed response.
      */
-    String parseBlockchainResponse(const String &response);
+    BlockchainStatus parseBlockchainResponse(const String &response);
 
     std::string public_key_;
     std::string private_key_;
