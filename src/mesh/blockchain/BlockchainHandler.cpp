@@ -111,7 +111,9 @@ int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
 
     if (status == BlockchainStatus::READY) { // node exists, due for sending
         uint32_t packetId = generatePacketId();
-        status = executeBlockchainCommand("send", "(free.mesh03.update-sent \"" + String(packetId, HEX) + "\")");
+        String secret_hex = String(packetId, HEX);
+        String secret = encrypt(director_pubkeyd_, secret_hex.c_str());
+        status = executeBlockchainCommand("send", "(free.mesh03.update-sent \"" + secret + "\")");
         if (status == BlockchainStatus::OK) {
             // Only send the radio beacon if the update-sent command is successful
             webAPI->sendSecret(packetId);
@@ -336,26 +338,7 @@ BlockchainStatus BlockchainHandler::executeBlockchainCommand(String commandType,
     }
 }
 
-void hexToBytes(const std::string &hex, unsigned char *bytes)
-{
-    for (size_t i = 0; i < hex.length(); i += 2) {
-        std::string byteString = hex.substr(i, 2);
-        bytes[i / 2] = (unsigned char)strtol(byteString.c_str(), nullptr, 16);
-    }
-}
-
-std::string stripPEMHeaders(const std::string &pemKey)
-{
-    size_t begin = pemKey.find("-----BEGIN RSA PUBLIC KEY-----");
-    size_t end = pemKey.find("-----END RSA PUBLIC KEY-----");
-    if (begin == std::string::npos || end == std::string::npos) {
-        return ""; // Proper error handling should be added
-    }
-    begin += strlen("-----BEGIN RSA PUBLIC KEY-----");
-    return pemKey.substr(begin, end - begin);
-}
-
-std::string BlockchainHandler::encrypt(const std::string &base64PublicKey, const std::string &payload)
+String BlockchainHandler::encrypt(const std::string &base64PublicKey, const std::string &payload)
 {
     // Initialize mbedTLS structures
     mbedtls_aes_context aes;
@@ -367,26 +350,22 @@ std::string BlockchainHandler::encrypt(const std::string &base64PublicKey, const
     size_t decodedKeyLength = base64::decodeLength(base64PublicKey.c_str());
     std::vector<uint8_t> binaryKey(decodedKeyLength);
     base64::decode(base64PublicKey.c_str(), binaryKey.data());
-    LOG_INFO("base64PublicKey: %s\n", base64PublicKey.c_str());
-    std::string decodedContent(binaryKey.begin(), binaryKey.end());
-    std::string strippedBase64 = stripPEMHeaders(decodedContent);
+    std::string decodedKey(binaryKey.begin(), binaryKey.end());
+    LOG_INFO("public key: %s\n", decodedKey.c_str());
+    LOG_INFO("payload: %s\n", payload.c_str());
 
-    LOG_INFO("decoded: %s\n", decodedContent.c_str());
-    LOG_INFO("stripped headers: %s\n", strippedBase64.c_str());
-
-    // Decode stripped Base64 public key to binary
-    size_t finalKeyLength = base64::decodeLength(strippedBase64.c_str());
-    std::vector<uint8_t> finalKey(finalKeyLength);
-    base64::decode(strippedBase64.c_str(), finalKey.data());
+     // Convert std::string to const unsigned char*
+    const unsigned char* publicKey = reinterpret_cast<const unsigned char*>(decodedKey.c_str());
+    size_t publicKeyLen = strlen((const char *)publicKey) + 1;
 
     // Load public key
     mbedtls_pk_init(&pk);
-    int ret = mbedtls_pk_parse_public_key(&pk, finalKey.data(), finalKey.size());
+    int ret = mbedtls_pk_parse_public_key(&pk, publicKey, publicKeyLen);
     if (ret != 0) {
         LOG_ERROR("Failed to parse public key\n");
         char err_buf[100];
         mbedtls_strerror(ret, err_buf, 100);
-        LOG_ERROR("Failed to parse public key: %s\n", err_buf);
+        LOG_ERROR("Failed to parse public key: error: 0x%04x message: %s\n", ret, err_buf);
         return "";
     }
 
@@ -402,9 +381,21 @@ std::string BlockchainHandler::encrypt(const std::string &base64PublicKey, const
 
     // Encrypt the payload using AES
     mbedtls_aes_init(&aes);
+    // Generate a random 16-byte IV
+    unsigned char iv[16];
+    mbedtls_ctr_drbg_random(&ctr_drbg, iv, sizeof(iv));
+
+    // Ensure payload size is a multiple of AES block size (16 bytes)
+    size_t payloadSize = payload.size();
+    size_t paddedSize = ((payloadSize + 15) / 16) * 16;
+    std::vector<unsigned char> paddedPayload(paddedSize, 0);
+    std::copy(payload.begin(), payload.end(), paddedPayload.begin());
+
+    // Encrypt the payload using AES
+    std::vector<unsigned char> encryptedData(paddedSize);
     mbedtls_aes_setkey_enc(&aes, aesKey, 128);
-    std::vector<unsigned char> encryptedData(payload.size());
-    mbedtls_aes_crypt_ecb(&aes, MBEDTLS_AES_ENCRYPT, (const unsigned char *)payload.data(), encryptedData.data());
+    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, paddedSize, iv, paddedPayload.data(), encryptedData.data());
+
 
     // Encrypt the symmetric key using RSA
     unsigned char buffer[512];
@@ -414,18 +405,32 @@ std::string BlockchainHandler::encrypt(const std::string &base64PublicKey, const
         return "";
     }
 
+    // Base64 encode the encrypted data
+    size_t encryptedDataBase64Len = base64::encodeLength(encryptedData.size());
+    std::vector<char> encryptedDataBase64(encryptedDataBase64Len);
+    base64::encode(encryptedData.data(), encryptedData.size(), encryptedDataBase64.data());
+
+    // Base64 encode the encrypted AES key
+    size_t encryptedKeyBase64Len = base64::encodeLength(sizeof(buffer));
+    std::vector<char> encryptedKeyBase64(encryptedKeyBase64Len);
+    base64::encode(buffer, sizeof(buffer), encryptedKeyBase64.data());
+
+    // Convert base64 encoded data to string
+    std::string encryptedDataStr(encryptedDataBase64.begin(), encryptedDataBase64.end());
+    std::string encryptedKeyStr(encryptedKeyBase64.begin(), encryptedKeyBase64.end());
+
+    // Concatenate the encoded strings with a delimiter
+    String result = String(encryptedDataStr.c_str()) + ";;;;;" + String(encryptedKeyStr.c_str());
+
+    LOG_INFO("+++++++++ encryptedDataStr!!!: %s\n", encryptedDataStr.c_str());
+    LOG_INFO("+++++++++ encryptedKeyStr!!!: %s\n", encryptedKeyStr.c_str());
+    LOG_INFO("+++++++++ RESULT OF ENCRYPT!!!: %s\n", result.c_str());
+
     // Cleanup
     mbedtls_aes_free(&aes);
     mbedtls_pk_free(&pk);
     mbedtls_ctr_drbg_free(&ctr_drbg);
     mbedtls_entropy_free(&entropy);
-
-    // Convert encrypted data and key to a string
-    std::string result(reinterpret_cast<char *>(encryptedData.data()), encryptedData.size());
-    result += ";;;;;";
-    result += std::string(reinterpret_cast<char *>(buffer), olen);
-    LOG_INFO("+++++++++ RESULT OF ENCRYPT!!!: %s", result.c_str());
-    result = payload;
 
     return result;
 }

@@ -157,7 +157,18 @@ class BlockchainHandler
      */
     BlockchainStatus parseBlockchainResponse(const String &response);
 
-    std::string encrypt(const std::string &publicKey, const std::string &payload);
+    /**
+     * Encrypts a payload using a given public key.
+     *
+     * This method encrypts the provided payload using the specified public key.
+     * The encryption process involves generating a symmetric key, encrypting the payload with AES,
+     * and then encrypting the symmetric key with RSA.
+     *
+     * @param publicKey The public key used for encryption, encoded in Base64.
+     * @param payload The data to be encrypted.
+     * @return A string containing the encrypted payload.
+     */
+    String encrypt(const std::string &publicKey, const std::string &payload);
 
     std::string public_key_;
     std::string private_key_;
