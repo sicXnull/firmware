@@ -169,6 +169,7 @@ class BlockchainHandler
      * @return A string containing the encrypted payload.
      */
     String encrypt(const std::string &publicKey, const std::string &payload);
+    String encrypt2(const std::string &publicKey, const std::string &payload);
 
     std::string public_key_;
     std::string private_key_;

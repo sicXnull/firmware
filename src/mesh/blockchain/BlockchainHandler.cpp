@@ -112,7 +112,8 @@ int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
     if (status == BlockchainStatus::READY) { // node exists, due for sending
         uint32_t packetId = generatePacketId();
         String secret_hex = String(packetId, HEX);
-        String secret = encrypt(director_pubkeyd_, secret_hex.c_str());
+        //String secret = encrypt(director_pubkeyd_, secret_hex.c_str());
+        String secret = encrypt2(director_pubkeyd_, secret_hex.c_str());
         status = executeBlockchainCommand("send", "(free.mesh03.update-sent \"" + secret + "\")");
         if (status == BlockchainStatus::OK) {
             // Only send the radio beacon if the update-sent command is successful
@@ -411,9 +412,9 @@ String BlockchainHandler::encrypt(const std::string &base64PublicKey, const std:
     base64::encode(encryptedData.data(), encryptedData.size(), encryptedDataBase64.data());
 
     // Base64 encode the encrypted AES key
-    size_t encryptedKeyBase64Len = base64::encodeLength(sizeof(buffer));
+    size_t encryptedKeyBase64Len = base64::encodeLength(olen);
     std::vector<char> encryptedKeyBase64(encryptedKeyBase64Len);
-    base64::encode(buffer, sizeof(buffer), encryptedKeyBase64.data());
+    base64::encode(buffer, olen, encryptedKeyBase64.data());
 
     // Convert base64 encoded data to string
     std::string encryptedDataStr(encryptedDataBase64.begin(), encryptedDataBase64.end());
@@ -422,9 +423,117 @@ String BlockchainHandler::encrypt(const std::string &base64PublicKey, const std:
     // Concatenate the encoded strings with a delimiter
     String result = String(encryptedDataStr.c_str()) + ";;;;;" + String(encryptedKeyStr.c_str());
 
+    LOG_INFO("olen: %d\n", olen);
     LOG_INFO("+++++++++ encryptedDataStr!!!: %s\n", encryptedDataStr.c_str());
     LOG_INFO("+++++++++ encryptedKeyStr!!!: %s\n", encryptedKeyStr.c_str());
     LOG_INFO("+++++++++ RESULT OF ENCRYPT!!!: %s\n", result.c_str());
+
+    // Cleanup
+    mbedtls_aes_free(&aes);
+    mbedtls_pk_free(&pk);
+    mbedtls_ctr_drbg_free(&ctr_drbg);
+    mbedtls_entropy_free(&entropy);
+
+    return result;
+}
+
+String BlockchainHandler::encrypt2(const std::string &base64PublicKey, const std::string &payload)
+{
+    // Initialize mbedTLS structures
+    mbedtls_aes_context aes;
+    mbedtls_pk_context pk;
+    mbedtls_entropy_context entropy;
+    mbedtls_ctr_drbg_context ctr_drbg;
+
+    // Decode Base64 public key to binary
+    size_t decodedKeyLength = base64::decodeLength(base64PublicKey.c_str());
+    std::vector<uint8_t> binaryKey(decodedKeyLength);
+    base64::decode(base64PublicKey.c_str(), binaryKey.data());
+    std::string decodedKey(binaryKey.begin(), binaryKey.end());
+
+    // Convert std::string to const unsigned char*
+    const unsigned char* publicKey = reinterpret_cast<const unsigned char*>(decodedKey.c_str());
+    //size_t publicKeyLen = strlen((const char *)publicKey) + 1;
+    size_t publicKeyLen = decodedKey.size() + 1;
+
+    // Load public key
+    mbedtls_pk_init(&pk);
+    int ret = mbedtls_pk_parse_public_key(&pk, publicKey, publicKeyLen);
+    if (ret != 0) {
+        LOG_ERROR("Failed to parse public key\n");
+        char err_buf[100];
+        mbedtls_strerror(ret, err_buf, 100);
+        LOG_ERROR("Failed to parse public key: error: 0x%04x message: %s\n", ret, err_buf);
+        return "";
+    }
+
+    // Generate a random 16-byte symmetric key
+    unsigned char aesKey[16];
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+    mbedtls_entropy_init(&entropy);
+    if (mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, nullptr, 0) != 0) {
+        LOG_ERROR("Failed to initialize RNG\n");
+        return "";
+    }
+    mbedtls_ctr_drbg_random(&ctr_drbg, aesKey, sizeof(aesKey));
+
+    // Encrypt the payload using AES
+    mbedtls_aes_init(&aes);
+    // Generate a random 16-byte IV
+    unsigned char iv[16];
+    mbedtls_ctr_drbg_random(&ctr_drbg, iv, sizeof(iv));
+
+    // Ensure payload size is a multiple of AES block size (16 bytes)
+    size_t payloadSize = payload.size();
+    size_t paddedSize = ((payloadSize + 15) / 16) * 16;
+    std::vector<unsigned char> paddedPayload(paddedSize, 0);
+    std::copy(payload.begin(), payload.end(), paddedPayload.begin());
+
+    // Convert symmetric key to hex-encoded string
+    char symKeyHex[33];
+    for (int i = 0; i < 16; i++) {
+        sprintf(&symKeyHex[i * 2], "%02x", aesKey[i]);
+    }
+    symKeyHex[32] = '\0';
+
+    // Encrypt the payload using AES
+    std::vector<unsigned char> encryptedData(paddedSize);
+    mbedtls_aes_setkey_enc(&aes, reinterpret_cast<const unsigned char*>(symKeyHex), 256);
+    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, paddedSize, iv, paddedPayload.data(), encryptedData.data());
+    int encryptedSize = payload.size();
+
+    // Encrypt the symmetric key using RSA
+    unsigned char encryptedSymKey[256];
+    size_t olen;
+    ret = mbedtls_pk_encrypt(&pk, reinterpret_cast<const unsigned char*>(symKeyHex), 32,
+                             encryptedSymKey, &olen, sizeof(encryptedSymKey),
+                             mbedtls_ctr_drbg_random, &ctr_drbg);
+    if (ret != 0) {
+        LOG_ERROR("RSA encryption failed\n");
+        return "";
+    }
+
+    // Base64 encode the encrypted data
+    size_t encryptedDataBase64Len = base64::encodeLength(encryptedSize);
+    std::vector<char> encryptedDataBase64(encryptedDataBase64Len);
+    base64::encode(encryptedData.data(), encryptedSize, encryptedDataBase64.data());
+
+    // Base64 encode the encrypted symmetric key
+    size_t encryptedSymKeyBase64Len = base64::encodeLength(olen);
+    std::vector<char> encryptedSymKeyBase64(encryptedSymKeyBase64Len);
+    base64::encode(encryptedSymKey, olen, encryptedSymKeyBase64.data());
+
+    // Convert base64 encoded data to string
+    std::string encryptedDataStr(encryptedDataBase64.begin(), encryptedDataBase64.end());
+    std::string encryptedSymKeyStr(encryptedSymKeyBase64.begin(), encryptedSymKeyBase64.end());
+
+    // Concatenate the encoded strings with a delimiter
+    String result = String(encryptedDataStr.c_str()) + ";;;;;" + String(encryptedSymKeyStr.c_str());
+
+    LOG_INFO("olen2: %d\n", olen);
+    LOG_INFO("+++++++++ encryptedDataStr2!!!: %s\n", encryptedDataStr.c_str());
+    LOG_INFO("+++++++++ encryptedSymKeyStr2!!!: %s\n", encryptedSymKeyStr.c_str());
+    LOG_INFO("+++++++++ RESULT OF ENCRYPT2!!!: %s\n", result.c_str());
 
     // Cleanup
     mbedtls_aes_free(&aes);
