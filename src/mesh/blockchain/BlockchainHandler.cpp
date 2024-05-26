@@ -7,6 +7,7 @@
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/entropy.h"
 #include "mbedtls/pk.h"
+#include "mbedtls/pkcs5.h"
 #include "memGet.h"
 #include "mesh/wifi/WiFiAPClient.h"
 #include <cstdio>
@@ -109,11 +110,15 @@ int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
     BlockchainStatus status = executeBlockchainCommand("local", "(free.mesh03.get-my-node)");
     LOG_INFO("\nResponse: %s\n", blockchainStatusToString(status).c_str());
 
+    uint32_t packetId = generatePacketId();
+    String secret_hex = String(packetId, HEX);
+    String secret_123 = "123";
+    String secret = encrypt(director_pubkeyd_, secret_123.c_str());
+
     if (status == BlockchainStatus::READY) { // node exists, due for sending
         uint32_t packetId = generatePacketId();
         String secret_hex = String(packetId, HEX);
-        //String secret = encrypt(director_pubkeyd_, secret_hex.c_str());
-        String secret = encrypt2(director_pubkeyd_, secret_hex.c_str());
+        String secret = encrypt(director_pubkeyd_, secret_hex.c_str());
         status = executeBlockchainCommand("send", "(free.mesh03.update-sent \"" + secret + "\")");
         if (status == BlockchainStatus::OK) {
             // Only send the radio beacon if the update-sent command is successful
@@ -339,111 +344,57 @@ BlockchainStatus BlockchainHandler::executeBlockchainCommand(String commandType,
     }
 }
 
-String BlockchainHandler::encrypt(const std::string &base64PublicKey, const std::string &payload)
-{
+// Function to add PKCS7 padding
+void add_pkcs7_padding(std::vector<unsigned char>& data, size_t block_size) {
+    size_t padding_size = block_size - (data.size() % block_size);
+    data.insert(data.end(), padding_size, static_cast<unsigned char>(padding_size));
+}
+
+bool derive_key_iv_pbkdf2(const std::string& password, const unsigned char *salt, size_t salt_len, unsigned char *key, size_t key_len, unsigned char *iv, size_t iv_len, int iterations) {
+    mbedtls_md_context_t md_ctx;
+    mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256; // More secure than MD5
+
+    mbedtls_md_init(&md_ctx);
+    if (mbedtls_md_setup(&md_ctx, mbedtls_md_info_from_type(md_type), 1) != 0) {
+        std::cerr << "Failed to setup md context for PBKDF2" << std::endl;
+        mbedtls_md_free(&md_ctx);
+        return false;
+    }
+
+    unsigned char key_iv[key_len + iv_len];  // Buffer to hold both key and IV
+    int ret = mbedtls_pkcs5_pbkdf2_hmac(&md_ctx, reinterpret_cast<const unsigned char*>(password.data()), password.size(), salt, salt_len, iterations, sizeof(key_iv), key_iv);
+    if (ret != 0) {
+        std::cerr << "Failed to derive key+IV using PBKDF2" << std::endl;
+        mbedtls_md_free(&md_ctx);
+        return false;
+    }
+
+    // Copy the derived data into key and IV buffers
+    memcpy(key, key_iv, key_len);
+    memcpy(iv, key_iv + key_len, iv_len);
+
+    mbedtls_md_free(&md_ctx);
+    return true;
+}
+
+String BlockchainHandler::encrypt(const std::string &base64PublicKey, const std::string &payload) {
     // Initialize mbedTLS structures
     mbedtls_aes_context aes;
     mbedtls_pk_context pk;
     mbedtls_entropy_context entropy;
     mbedtls_ctr_drbg_context ctr_drbg;
+    mbedtls_rsa_context *rsa;
 
-    // Decode Base64 public key to binary
-    size_t decodedKeyLength = base64::decodeLength(base64PublicKey.c_str());
-    std::vector<uint8_t> binaryKey(decodedKeyLength);
-    base64::decode(base64PublicKey.c_str(), binaryKey.data());
-    std::string decodedKey(binaryKey.begin(), binaryKey.end());
-    LOG_INFO("public key: %s\n", decodedKey.c_str());
-    LOG_INFO("payload: %s\n", payload.c_str());
-
-     // Convert std::string to const unsigned char*
-    const unsigned char* publicKey = reinterpret_cast<const unsigned char*>(decodedKey.c_str());
-    size_t publicKeyLen = strlen((const char *)publicKey) + 1;
-
-    // Load public key
-    mbedtls_pk_init(&pk);
-    int ret = mbedtls_pk_parse_public_key(&pk, publicKey, publicKeyLen);
-    if (ret != 0) {
-        LOG_ERROR("Failed to parse public key\n");
-        char err_buf[100];
-        mbedtls_strerror(ret, err_buf, 100);
-        LOG_ERROR("Failed to parse public key: error: 0x%04x message: %s\n", ret, err_buf);
-        return "";
-    }
-
-    // Generate a random 16-byte symmetric key
-    unsigned char aesKey[16];
+    // Initialize and seed the random number generator
     mbedtls_ctr_drbg_init(&ctr_drbg);
     mbedtls_entropy_init(&entropy);
+    mbedtls_aes_init(&aes);
+    mbedtls_pk_init(&pk);
+
     if (mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, nullptr, 0) != 0) {
         LOG_ERROR("Failed to initialize RNG\n");
         return "";
     }
-    mbedtls_ctr_drbg_random(&ctr_drbg, aesKey, sizeof(aesKey));
-
-    // Encrypt the payload using AES
-    mbedtls_aes_init(&aes);
-    // Generate a random 16-byte IV
-    unsigned char iv[16];
-    mbedtls_ctr_drbg_random(&ctr_drbg, iv, sizeof(iv));
-
-    // Ensure payload size is a multiple of AES block size (16 bytes)
-    size_t payloadSize = payload.size();
-    size_t paddedSize = ((payloadSize + 15) / 16) * 16;
-    std::vector<unsigned char> paddedPayload(paddedSize, 0);
-    std::copy(payload.begin(), payload.end(), paddedPayload.begin());
-
-    // Encrypt the payload using AES
-    std::vector<unsigned char> encryptedData(paddedSize);
-    mbedtls_aes_setkey_enc(&aes, aesKey, 128);
-    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, paddedSize, iv, paddedPayload.data(), encryptedData.data());
-
-
-    // Encrypt the symmetric key using RSA
-    unsigned char buffer[512];
-    size_t olen;
-    if (mbedtls_pk_encrypt(&pk, aesKey, sizeof(aesKey), buffer, &olen, sizeof(buffer), mbedtls_ctr_drbg_random, &ctr_drbg) != 0) {
-        LOG_ERROR("RSA encryption failed\n");
-        return "";
-    }
-
-    // Base64 encode the encrypted data
-    size_t encryptedDataBase64Len = base64::encodeLength(encryptedData.size());
-    std::vector<char> encryptedDataBase64(encryptedDataBase64Len);
-    base64::encode(encryptedData.data(), encryptedData.size(), encryptedDataBase64.data());
-
-    // Base64 encode the encrypted AES key
-    size_t encryptedKeyBase64Len = base64::encodeLength(olen);
-    std::vector<char> encryptedKeyBase64(encryptedKeyBase64Len);
-    base64::encode(buffer, olen, encryptedKeyBase64.data());
-
-    // Convert base64 encoded data to string
-    std::string encryptedDataStr(encryptedDataBase64.begin(), encryptedDataBase64.end());
-    std::string encryptedKeyStr(encryptedKeyBase64.begin(), encryptedKeyBase64.end());
-
-    // Concatenate the encoded strings with a delimiter
-    String result = String(encryptedDataStr.c_str()) + ";;;;;" + String(encryptedKeyStr.c_str());
-
-    LOG_INFO("olen: %d\n", olen);
-    LOG_INFO("+++++++++ encryptedDataStr!!!: %s\n", encryptedDataStr.c_str());
-    LOG_INFO("+++++++++ encryptedKeyStr!!!: %s\n", encryptedKeyStr.c_str());
-    LOG_INFO("+++++++++ RESULT OF ENCRYPT!!!: %s\n", result.c_str());
-
-    // Cleanup
-    mbedtls_aes_free(&aes);
-    mbedtls_pk_free(&pk);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
-
-    return result;
-}
-
-String BlockchainHandler::encrypt2(const std::string &base64PublicKey, const std::string &payload)
-{
-    // Initialize mbedTLS structures
-    mbedtls_aes_context aes;
-    mbedtls_pk_context pk;
-    mbedtls_entropy_context entropy;
-    mbedtls_ctr_drbg_context ctr_drbg;
 
     // Decode Base64 public key to binary
     size_t decodedKeyLength = base64::decodeLength(base64PublicKey.c_str());
@@ -453,41 +404,18 @@ String BlockchainHandler::encrypt2(const std::string &base64PublicKey, const std
 
     // Convert std::string to const unsigned char*
     const unsigned char* publicKey = reinterpret_cast<const unsigned char*>(decodedKey.c_str());
-    //size_t publicKeyLen = strlen((const char *)publicKey) + 1;
     size_t publicKeyLen = decodedKey.size() + 1;
-
-    // Load public key
-    mbedtls_pk_init(&pk);
-    int ret = mbedtls_pk_parse_public_key(&pk, publicKey, publicKeyLen);
-    if (ret != 0) {
+    if (mbedtls_pk_parse_public_key(&pk, publicKey, publicKeyLen) != 0) {
         LOG_ERROR("Failed to parse public key\n");
-        char err_buf[100];
-        mbedtls_strerror(ret, err_buf, 100);
-        LOG_ERROR("Failed to parse public key: error: 0x%04x message: %s\n", ret, err_buf);
         return "";
     }
+
+    rsa = mbedtls_pk_rsa(pk);
+    mbedtls_rsa_set_padding(rsa, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256);
 
     // Generate a random 16-byte symmetric key
     unsigned char aesKey[16];
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    mbedtls_entropy_init(&entropy);
-    if (mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, nullptr, 0) != 0) {
-        LOG_ERROR("Failed to initialize RNG\n");
-        return "";
-    }
     mbedtls_ctr_drbg_random(&ctr_drbg, aesKey, sizeof(aesKey));
-
-    // Encrypt the payload using AES
-    mbedtls_aes_init(&aes);
-    // Generate a random 16-byte IV
-    unsigned char iv[16];
-    mbedtls_ctr_drbg_random(&ctr_drbg, iv, sizeof(iv));
-
-    // Ensure payload size is a multiple of AES block size (16 bytes)
-    size_t payloadSize = payload.size();
-    size_t paddedSize = ((payloadSize + 15) / 16) * 16;
-    std::vector<unsigned char> paddedPayload(paddedSize, 0);
-    std::copy(payload.begin(), payload.end(), paddedPayload.begin());
 
     // Convert symmetric key to hex-encoded string
     char symKeyHex[33];
@@ -496,44 +424,89 @@ String BlockchainHandler::encrypt2(const std::string &base64PublicKey, const std
     }
     symKeyHex[32] = '\0';
 
-    // Encrypt the payload using AES
-    std::vector<unsigned char> encryptedData(paddedSize);
-    mbedtls_aes_setkey_enc(&aes, reinterpret_cast<const unsigned char*>(symKeyHex), 256);
-    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, paddedSize, iv, paddedPayload.data(), encryptedData.data());
-    int encryptedSize = payload.size();
-
-    // Encrypt the symmetric key using RSA
-    unsigned char encryptedSymKey[256];
+    // Encrypt the symmetric key using RSA-OAEP with SHA-256
+    unsigned char buffer[512];
     size_t olen;
-    ret = mbedtls_pk_encrypt(&pk, reinterpret_cast<const unsigned char*>(symKeyHex), 32,
-                             encryptedSymKey, &olen, sizeof(encryptedSymKey),
-                             mbedtls_ctr_drbg_random, &ctr_drbg);
-    if (ret != 0) {
+    if (mbedtls_rsa_rsaes_oaep_encrypt(rsa, mbedtls_ctr_drbg_random, &ctr_drbg, MBEDTLS_RSA_PUBLIC, nullptr, 0, sizeof(symKeyHex), reinterpret_cast<const unsigned char*>(symKeyHex), buffer) != 0) {
         LOG_ERROR("RSA encryption failed\n");
         return "";
     }
+    olen = mbedtls_rsa_get_len(rsa);
 
-    // Base64 encode the encrypted data
-    size_t encryptedDataBase64Len = base64::encodeLength(encryptedSize);
-    std::vector<char> encryptedDataBase64(encryptedDataBase64Len);
-    base64::encode(encryptedData.data(), encryptedSize, encryptedDataBase64.data());
+    // Encrypt the payload using AES
+    // unsigned char iv[16];
+    // mbedtls_ctr_drbg_random(&ctr_drbg, iv, sizeof(iv));
 
-    // Base64 encode the encrypted symmetric key
-    size_t encryptedSymKeyBase64Len = base64::encodeLength(olen);
-    std::vector<char> encryptedSymKeyBase64(encryptedSymKeyBase64Len);
-    base64::encode(encryptedSymKey, olen, encryptedSymKeyBase64.data());
+    // Generate a random 8-byte salt
+    unsigned char salt[8];
+    mbedtls_ctr_drbg_random(&ctr_drbg, salt, sizeof(salt));
+    unsigned char key[32], iv[16];
+    std::string symKeyString = std::string(symKeyHex);
+    LOG_INFO("KEY: %s\n", symKeyString.c_str());
+    if (!derive_key_iv_pbkdf2(symKeyString, salt, 8, key, 32, iv, 16, 1000)) {
+        std::cerr << "Key and IV derivation failed." << std::endl;
+    }
+    // Convert and log the IV in hexadecimal format
+    std::string ivHex;
+    for (unsigned char byte : std::vector<unsigned char>(iv, iv + sizeof(iv))) {
+        char hex[3]; // Temporary buffer for each byte
+        sprintf(hex, "%02x", byte);
+        ivHex += hex; // Append the hex string to the result
+    }
+    LOG_INFO("IV: %s\n", ivHex.c_str());
+    // Set key length to 256 bits
+    mbedtls_aes_setkey_enc(&aes, /*reinterpret_cast<const unsigned char*>(aesKeyHex)*/key, 256);  // Using 256-bit encryption key
 
-    // Convert base64 encoded data to string
-    std::string encryptedDataStr(encryptedDataBase64.begin(), encryptedDataBase64.end());
-    std::string encryptedSymKeyStr(encryptedSymKeyBase64.begin(), encryptedSymKeyBase64.end());
+    // Add PKCS7 padding to the payload
+    std::vector<unsigned char> paddedPayload(payload.begin(), payload.end());
+    add_pkcs7_padding(paddedPayload, 16);
+
+    // Encrypt the payload using AES-CBC
+    std::vector<unsigned char> encryptedData(paddedPayload.size());
+    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, paddedPayload.size(), iv, paddedPayload.data(), encryptedData.data());
+    // Convert and log the salt in hexadecimal format
+    std::string saltHex;
+    for (unsigned char byte : std::vector<unsigned char>(salt, salt + sizeof(salt))) {
+        char hex[3]; // Temporary buffer for each byte
+        sprintf(hex, "%02x", byte);
+        saltHex += hex; // Append the hex string to the result
+    }
+    LOG_INFO("Salt: %s\n", saltHex.c_str());
+
+    std::string encryptedDataHex;
+    for (unsigned char byte : encryptedData) {
+        char hex[3]; // Temporary buffer for each byte
+        sprintf(hex, "%02x", byte);
+        encryptedDataHex += hex; // Append the hex string to the result
+    }
+    LOG_INFO("Encrypted Data: %s\n", encryptedDataHex.c_str());
+
+    // Combine prefix, salt and encryptedData
+    std::vector<unsigned char> combinedData;
+    const char* prefix = "Salted__";
+    combinedData.insert(combinedData.end(), prefix, prefix + 8);
+    combinedData.insert(combinedData.end(), salt, salt + sizeof(salt));
+    combinedData.insert(combinedData.end(), encryptedData.begin(), encryptedData.end());
+
+    // Base64 encode the encrypted AES key
+    size_t encryptedKeyBase64Len = base64::encodeLength(olen);
+    std::vector<char> encryptedKeyBase64(encryptedKeyBase64Len);
+    base64::encode(buffer, olen, encryptedKeyBase64.data());
+
+    // Base64 encode the combined data
+    size_t combinedDataBase64Len = base64::encodeLength(combinedData.size());
+    std::vector<char> combinedDataBase64(combinedDataBase64Len);
+    base64::encode(combinedData.data(), combinedData.size(), combinedDataBase64.data());
+
+    std::string encryptedCombinedDataStr(combinedDataBase64.begin(), combinedDataBase64.end());
+    std::string encryptedKeyStr(encryptedKeyBase64.begin(), encryptedKeyBase64.end());
 
     // Concatenate the encoded strings with a delimiter
-    String result = String(encryptedDataStr.c_str()) + ";;;;;" + String(encryptedSymKeyStr.c_str());
-
-    LOG_INFO("olen2: %d\n", olen);
-    LOG_INFO("+++++++++ encryptedDataStr2!!!: %s\n", encryptedDataStr.c_str());
-    LOG_INFO("+++++++++ encryptedSymKeyStr2!!!: %s\n", encryptedSymKeyStr.c_str());
-    LOG_INFO("+++++++++ RESULT OF ENCRYPT2!!!: %s\n", result.c_str());
+    String result = String(encryptedCombinedDataStr.c_str()) + ";;;;;" + String(encryptedKeyStr.c_str());
+    LOG_INFO("+++++++++ Encrypted combined Data Base64: %s\n", encryptedCombinedDataStr.c_str());
+    LOG_INFO("+++++++++ Encrypted SymKey Base64: %s\n", encryptedKeyStr.c_str());
+    LOG_INFO("+++++++++ RESULT OF ENCRYPT!!!: %s\n", result.c_str());
+    logLongString(result);
 
     // Cleanup
     mbedtls_aes_free(&aes);
