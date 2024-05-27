@@ -110,11 +110,6 @@ int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
     BlockchainStatus status = executeBlockchainCommand("local", "(free.mesh03.get-my-node)");
     LOG_INFO("\nResponse: %s\n", blockchainStatusToString(status).c_str());
 
-    uint32_t packetId = generatePacketId();
-    String secret_hex = String(packetId, HEX);
-    String secret_123 = "123";
-    String secret = encrypt(director_pubkeyd_, secret_123.c_str());
-
     if (status == BlockchainStatus::READY) { // node exists, due for sending
         uint32_t packetId = generatePacketId();
         String secret_hex = String(packetId, HEX);
@@ -350,31 +345,88 @@ void add_pkcs7_padding(std::vector<unsigned char>& data, size_t block_size) {
     data.insert(data.end(), padding_size, static_cast<unsigned char>(padding_size));
 }
 
-bool derive_key_iv_pbkdf2(const std::string& password, const unsigned char *salt, size_t salt_len, unsigned char *key, size_t key_len, unsigned char *iv, size_t iv_len, int iterations) {
+void EvpKDF(const unsigned char *password, size_t password_len,
+            const unsigned char *salt, size_t salt_len,
+            unsigned char *pOutKey, size_t key_size,
+            unsigned char *pOutIV, size_t iv_size,
+            mbedtls_md_type_t md_type, int iterations) {
     mbedtls_md_context_t md_ctx;
-    mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256; // More secure than MD5
-
     mbedtls_md_init(&md_ctx);
-    if (mbedtls_md_setup(&md_ctx, mbedtls_md_info_from_type(md_type), 1) != 0) {
-        std::cerr << "Failed to setup md context for PBKDF2" << std::endl;
-        mbedtls_md_free(&md_ctx);
-        return false;
+
+    if (mbedtls_md_setup(&md_ctx, mbedtls_md_info_from_type(md_type), 1)!= 0) {
+        fprintf(stderr, "Failed to setup md context\n");
+        return;
     }
 
-    unsigned char key_iv[key_len + iv_len];  // Buffer to hold both key and IV
-    int ret = mbedtls_pkcs5_pbkdf2_hmac(&md_ctx, reinterpret_cast<const unsigned char*>(password.data()), password.size(), salt, salt_len, iterations, sizeof(key_iv), key_iv);
-    if (ret != 0) {
-        std::cerr << "Failed to derive key+IV using PBKDF2" << std::endl;
-        mbedtls_md_free(&md_ctx);
-        return false;
-    }
+    size_t block_size = mbedtls_md_get_size(mbedtls_md_info_from_type(md_type));
+    std::vector<unsigned char> block(block_size);
+    std::vector<unsigned char> derivedKey;
 
-    // Copy the derived data into key and IV buffers
-    memcpy(key, key_iv, key_len);
-    memcpy(iv, key_iv + key_len, iv_len);
+    size_t total_size = key_size + iv_size;
+
+    while (derivedKey.size() < total_size) {
+        mbedtls_md_starts(&md_ctx);
+        if (!derivedKey.empty()) {
+            mbedtls_md_update(&md_ctx, block.data(), block.size());
+        }
+        mbedtls_md_update(&md_ctx, password, password_len);
+        mbedtls_md_update(&md_ctx, salt, salt_len); // Incorporate salt
+        mbedtls_md_finish(&md_ctx, block.data()); // Finalize the block
+
+        for (int i = 1; i < iterations; i++) {
+            mbedtls_md_starts(&md_ctx);
+            mbedtls_md_update(&md_ctx, block.data(), block_size);
+            mbedtls_md_finish(&md_ctx, block.data()); // Correctly finalize the block once per iteration
+        }
+
+        derivedKey.insert(derivedKey.end(), block.begin(), block.end());
+    }
 
     mbedtls_md_free(&md_ctx);
-    return true;
+
+    // Ensure the derivedKey is long enough
+    if (derivedKey.size() > total_size) {
+        derivedKey.resize(total_size);
+    }
+
+    memcpy(pOutKey, derivedKey.data(), key_size);
+    memcpy(pOutIV, derivedKey.data() + key_size, iv_size);
+}
+
+// Function to log key and IV in hexadecimal format
+void logEncryptionInfo(const unsigned char* key, size_t keySize, const unsigned char* iv, size_t ivSize, const unsigned char* salt, size_t saltSize, const std::vector<unsigned char>& encryptedData) {
+    std::string keyHex;
+    for (size_t i = 0; i < keySize; ++i) {
+        char hex[3]; // Temporary buffer for each byte
+        sprintf(hex, "%02x", key[i]);
+        keyHex += hex; // Append the hex string to the result
+    }
+    LOG_INFO("Derived KEY: %s\n", keyHex.c_str());
+
+    std::string ivHex;
+    for (size_t i = 0; i < ivSize; ++i) {
+        char hex[3]; // Temporary buffer for each byte
+        sprintf(hex, "%02x", iv[i]);
+        ivHex += hex; // Append the hex string to the result
+    }
+    LOG_INFO("Derived IV: %s\n", ivHex.c_str());
+
+    // Convert and log the salt in hexadecimal format
+    std::string saltHex;
+    for (size_t i = 0; i < saltSize; ++i) {
+        char hex[3]; // Temporary buffer for each byte
+        sprintf(hex, "%02x", salt[i]);
+        saltHex += hex; // Append the hex string to the result
+    }
+    LOG_INFO("Salt: %s\n", saltHex.c_str());
+
+    std::string encryptedDataHex;
+    for (unsigned char byte : encryptedData) {
+        char hex[3]; // Temporary buffer for each byte
+        sprintf(hex, "%02x", byte);
+        encryptedDataHex += hex; // Append the hex string to the result
+    }
+    LOG_INFO("Encrypted Data: %s\n", encryptedDataHex.c_str());
 }
 
 String BlockchainHandler::encrypt(const std::string &base64PublicKey, const std::string &payload) {
@@ -391,6 +443,7 @@ String BlockchainHandler::encrypt(const std::string &base64PublicKey, const std:
     mbedtls_aes_init(&aes);
     mbedtls_pk_init(&pk);
 
+    // Seed the random number generator
     if (mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, nullptr, 0) != 0) {
         LOG_ERROR("Failed to initialize RNG\n");
         return "";
@@ -433,29 +486,18 @@ String BlockchainHandler::encrypt(const std::string &base64PublicKey, const std:
     }
     olen = mbedtls_rsa_get_len(rsa);
 
-    // Encrypt the payload using AES
-    // unsigned char iv[16];
-    // mbedtls_ctr_drbg_random(&ctr_drbg, iv, sizeof(iv));
-
     // Generate a random 8-byte salt
     unsigned char salt[8];
     mbedtls_ctr_drbg_random(&ctr_drbg, salt, sizeof(salt));
-    unsigned char key[32], iv[16];
+    unsigned char derivedKey[32], derivedIV[16];
     std::string symKeyString = std::string(symKeyHex);
     LOG_INFO("KEY: %s\n", symKeyString.c_str());
-    if (!derive_key_iv_pbkdf2(symKeyString, salt, 8, key, 32, iv, 16, 1000)) {
-        std::cerr << "Key and IV derivation failed." << std::endl;
-    }
-    // Convert and log the IV in hexadecimal format
-    std::string ivHex;
-    for (unsigned char byte : std::vector<unsigned char>(iv, iv + sizeof(iv))) {
-        char hex[3]; // Temporary buffer for each byte
-        sprintf(hex, "%02x", byte);
-        ivHex += hex; // Append the hex string to the result
-    }
-    LOG_INFO("IV: %s\n", ivHex.c_str());
+
+    // IMPORTANT: SymKeyHex must be 33 bytes (counting the null terminator), otherwise key derivation will differ from CryptoJS
+    EvpKDF(reinterpret_cast<const unsigned char*>(symKeyHex), 33, salt, 8, derivedKey, 32, derivedIV, 16, MBEDTLS_MD_MD5, 1);
+
     // Set key length to 256 bits
-    mbedtls_aes_setkey_enc(&aes, /*reinterpret_cast<const unsigned char*>(aesKeyHex)*/key, 256);  // Using 256-bit encryption key
+    mbedtls_aes_setkey_enc(&aes, derivedKey, 256);  // Using 256-bit encryption key
 
     // Add PKCS7 padding to the payload
     std::vector<unsigned char> paddedPayload(payload.begin(), payload.end());
@@ -463,23 +505,11 @@ String BlockchainHandler::encrypt(const std::string &base64PublicKey, const std:
 
     // Encrypt the payload using AES-CBC
     std::vector<unsigned char> encryptedData(paddedPayload.size());
-    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, paddedPayload.size(), iv, paddedPayload.data(), encryptedData.data());
-    // Convert and log the salt in hexadecimal format
-    std::string saltHex;
-    for (unsigned char byte : std::vector<unsigned char>(salt, salt + sizeof(salt))) {
-        char hex[3]; // Temporary buffer for each byte
-        sprintf(hex, "%02x", byte);
-        saltHex += hex; // Append the hex string to the result
-    }
-    LOG_INFO("Salt: %s\n", saltHex.c_str());
+    unsigned char derivedIVCopy[16];
+    memcpy(derivedIVCopy, derivedIV, sizeof(derivedIVCopy));
+    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, paddedPayload.size(), derivedIVCopy, paddedPayload.data(), encryptedData.data());
 
-    std::string encryptedDataHex;
-    for (unsigned char byte : encryptedData) {
-        char hex[3]; // Temporary buffer for each byte
-        sprintf(hex, "%02x", byte);
-        encryptedDataHex += hex; // Append the hex string to the result
-    }
-    LOG_INFO("Encrypted Data: %s\n", encryptedDataHex.c_str());
+    logEncryptionInfo(derivedKey, 32, derivedIV, 16, salt, 8, encryptedData);
 
     // Combine prefix, salt and encryptedData
     std::vector<unsigned char> combinedData;
