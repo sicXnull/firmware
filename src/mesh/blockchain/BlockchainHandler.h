@@ -1,5 +1,5 @@
 #pragma once
-#include "BLAKE2b.h"
+#include "EncryptionHandler.h"
 #include "NodeDB.h"
 #include "RTC.h"
 #include "Router.h"
@@ -76,6 +76,18 @@ class BlockchainHandler
      */
     BlockchainStatus executeBlockchainCommand(String commandType, String command);
 
+    /**
+     * Encrypts a payload.
+     *
+     * This method encrypts the provided payload using the director's public key.
+     * The encryption process involves generating a symmetric key, encrypting the payload with AES,
+     * and then encrypting the symmetric key with RSA.
+     *
+     * @param payload The data to be encrypted.
+     * @return A string containing the encrypted payload.
+     */
+    String encryptPayload(const std::string &payload);
+
   private:
     /**
      * Checks if the wallet configuration is valid.
@@ -85,43 +97,6 @@ class BlockchainHandler
      * @return True if the wallet configuration is valid, otherwise false.
      */
     bool isWalletConfigValid();
-
-    /**
-     * Generates a binary hash from the given HashVector.
-     *
-     * @param hash A pointer to the BLAKE2b object.
-     * @param test A pointer to the HashVector containing the data to hash.
-     * @return A pointer to the resulting binary hash.
-     */
-    uint8_t *Binhash(BLAKE2b *hash, const struct HashVector *test);
-
-    /**
-     * Generates a Kadena hash from the given HashVector.
-     *
-     * @param hash A pointer to the BLAKE2b object.
-     * @param test A pointer to the HashVector containing the data to hash.
-     * @return A String containing the Kadena hash.
-     */
-    String KDAhash(BLAKE2b *hash, const struct HashVector *test);
-
-    /**
-     * Converts a hexadecimal string to a byte array.
-     *
-     * @param hex The hexadecimal string to convert.
-     * @param out A pointer to the output byte array.
-     */
-    void HexToBytes(const std::string &hex, char *out);
-
-    /**
-     * Generates a digital signature for a given binary hash.
-     *
-     * This method takes a binary hash as input and generates a digital signature using the private key associated with the
-     * blockchain handler. The signature is used to authenticate transactions or data when interacting with the blockchain.
-     *
-     * @param hashBin A pointer to the binary hash that needs to be signed.
-     * @return A String containing the hexadecimal representation of the digital signature.
-     */
-    String generateSignature(const uint8_t *hashBin);
 
     /**
      * Creates a JSON object representing a blockchain command.
@@ -158,21 +133,20 @@ class BlockchainHandler
     BlockchainStatus parseBlockchainResponse(const String &response);
 
     /**
-     * Encrypts a payload using a given public key.
+     * Converts a BlockchainStatus enum value to its corresponding string representation.
      *
-     * This method encrypts the provided payload using the specified public key.
-     * The encryption process involves generating a symmetric key, encrypting the payload with AES,
-     * and then encrypting the symmetric key with RSA.
+     * This method takes a BlockchainStatus enum value and returns a human-readable string
+     * that represents the status. This is useful for logging, debugging, or displaying
+     * the status in a user interface.
      *
-     * @param publicKey The public key used for encryption, encoded in Base64.
-     * @param payload The data to be encrypted.
-     * @return A string containing the encrypted payload.
+     * @param status The BlockchainStatus enum value to be converted.
+     * @return A string representation of the given BlockchainStatus.
      */
-    String encrypt(const std::string &publicKey, const std::string &payload);
+    std::string blockchainStatusToString(BlockchainStatus status);
 
     std::string public_key_;
     std::string private_key_;
     String kda_server_;
-    BLAKE2b blake2b_;
     std::string director_pubkeyd_;
+    std::unique_ptr<EncryptionHandler> encryptionHandler_;
 };
