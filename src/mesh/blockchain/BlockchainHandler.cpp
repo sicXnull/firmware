@@ -51,7 +51,7 @@ int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
         String secret_hex = String(packetId, HEX);
         String secret = encryptPayload(secret_hex.c_str());
         status = executeBlockchainCommand("send", "(free.mesh03.update-sent \"" + secret + "\")");
-        if (status == BlockchainStatus::OK) {
+        if (status == BlockchainStatus::SUCCESS) {
             // Only send the radio beacon if the update-sent command is successful
             webAPI->sendSecret(packetId);
             LOG_INFO("\nUpdate sent successfully\n");
@@ -104,8 +104,7 @@ JSONObject BlockchainHandler::createCommandObject(const String &command)
 JSONObject BlockchainHandler::preparePostObject(const JSONObject &cmdObject, const String &commandType)
 {
     JSONObject postObject;
-
-    JSONValue *cmd = new JSONValue(cmdObject);
+    std::unique_ptr<JSONValue> cmd(new JSONValue(cmdObject));
     const String cmdString = cmd->Stringify().c_str();
     postObject["cmd"] = new JSONValue(cmdString.c_str());
     HashVector vector{"Test1", cmdString.c_str()};
@@ -125,14 +124,12 @@ JSONObject BlockchainHandler::preparePostObject(const JSONObject &cmdObject, con
     sigs.push_back(new JSONValue(sigObject));
     postObject["sigs"] = new JSONValue(sigs);
 
-    delete cmd;
     return postObject;
 }
 
-BlockchainStatus BlockchainHandler::parseBlockchainResponse(const String &response)
+BlockchainStatus BlockchainHandler::parseBlockchainResponse(const String &response, const String &command)
 {
-    BlockchainStatus returnStatus = BlockchainStatus::NODE_NOT_FOUND;
-    JSONValue *response_value = JSON::Parse(response.c_str());
+    std::unique_ptr<JSONValue> response_value(JSON::Parse(response.c_str()));
     if (response_value == nullptr) {
         return BlockchainStatus::PARSING_ERROR;
     }
@@ -143,20 +140,26 @@ BlockchainStatus BlockchainHandler::parseBlockchainResponse(const String &respon
     JSONValue *status_value = resultObject["status"];
     String status = status_value->Stringify().c_str();
     LOG_INFO("Status value: %s\n", status);
+
+    BlockchainStatus returnStatus = command.indexOf("get-my-node") > 0 ? BlockchainStatus::NODE_NOT_FOUND : BlockchainStatus::FAILURE;
     if (status.startsWith("\"s")) {
         JSONObject dataRespObject = data_value->AsObject();
         JSONValue *pubkeyd_value = dataRespObject["pubkeyd"];
         director_pubkeyd_ = pubkeyd_value->AsString();
         LOG_INFO("Director PUBKEYD: %s\n", director_pubkeyd_.c_str());
-        JSONValue *send_value = dataRespObject["send"];
-        String sendValue = send_value->Stringify().c_str();
-        if (sendValue == "true") {
-            returnStatus = BlockchainStatus::READY;
-        } else {
-            returnStatus = BlockchainStatus::NOT_DUE;
+
+        if (command.indexOf("get-my-node") > 0) {
+            JSONValue *send_value = dataRespObject["send"];
+            String sendValue = send_value->Stringify().c_str();
+            if (sendValue == "true") {
+                returnStatus = BlockchainStatus::READY;
+            } else {
+                returnStatus = BlockchainStatus::NOT_DUE;
+            }
+        } else if (command.indexOf("get-sender-details") > 0) {
+            returnStatus = BlockchainStatus::SUCCESS;
         }
     }
-    delete response_value;
     return returnStatus;
 }
 
@@ -172,15 +175,15 @@ BlockchainStatus BlockchainHandler::executeBlockchainCommand(String commandType,
     JSONObject cmdObject = createCommandObject(command);
     JSONObject postObject = preparePostObject(cmdObject, commandType);
 
-    JSONValue *post;
+    std::unique_ptr<JSONValue> post;
     if (commandType == "local") {
-        post = new JSONValue(postObject);
+        post = std::unique_ptr<JSONValue>(new JSONValue(postObject));
     } else {
         JSONArray cmds;
         JSONObject cmdsObject;
         cmds.push_back(new JSONValue(postObject));
         cmdsObject["cmds"] = new JSONValue(cmds);
-        post = new JSONValue(cmdsObject);
+        post = std::unique_ptr<JSONValue>(new JSONValue(cmdsObject));
     }
 
     const String postRaw = post->Stringify().c_str();
@@ -193,7 +196,6 @@ BlockchainStatus BlockchainHandler::executeBlockchainCommand(String commandType,
     logLongString(response);
 
     http.end();
-    delete post;
     LOG_INFO("Called HTTP end\n");
     // Handle HTTP response codes
     if (httpResponseCode < 0 || (httpResponseCode >= 400 && httpResponseCode <= 599)) {
@@ -204,9 +206,9 @@ BlockchainStatus BlockchainHandler::executeBlockchainCommand(String commandType,
     }
 
     if (commandType == "local") {
-        return parseBlockchainResponse(response);
+        return parseBlockchainResponse(response, command);
     } else {
-        return BlockchainStatus::OK;
+        return BlockchainStatus::SUCCESS;
     }
 }
 
@@ -222,8 +224,10 @@ String BlockchainHandler::encryptPayload(const std::string &payload) {
 std::string BlockchainHandler::blockchainStatusToString(BlockchainStatus status)
 {
     switch (status) {
-    case BlockchainStatus::OK:
-        return "OK";
+    case BlockchainStatus::SUCCESS:
+        return "SUCCESS";
+    case BlockchainStatus::FAILURE:
+        return "FAILURE";
     case BlockchainStatus::NO_WIFI:
         return "NO_WIFI";
     case BlockchainStatus::HTTP_ERROR:

@@ -25,7 +25,8 @@
 
 // Define an enumeration for status codes
 enum class BlockchainStatus {
-    OK,
+    SUCCESS,
+    FAILURE,
     NO_WIFI,
     HTTP_ERROR,
     EMPTY_RESPONSE,
@@ -88,6 +89,18 @@ class BlockchainHandler
      */
     String encryptPayload(const std::string &payload);
 
+    /**
+     * Converts a BlockchainStatus enum value to its corresponding string representation.
+     *
+     * This method takes a BlockchainStatus enum value and returns a human-readable string
+     * that represents the status. This is useful for logging, debugging, or displaying
+     * the status in a user interface.
+     *
+     * @param status The BlockchainStatus enum value to be converted.
+     * @return A string representation of the given BlockchainStatus.
+     */
+    std::string blockchainStatusToString(BlockchainStatus status);
+
   private:
     /**
      * Checks if the wallet configuration is valid.
@@ -127,22 +140,16 @@ class BlockchainHandler
      * This method takes a blockchain response in the form of a string, parses it, and extracts
      * relevant information, making it easier to handle the response programmatically.
      *
+     * The method first attempts to parse the response string into a JSON object. If the parsing
+     * fails, it returns a PARSING_ERROR status. It then examines the "result" field of the JSON
+     * object to determine the status of the blockchain command. Depending on the command type,
+     * it extracts specific information such as the director's public key and the send status.
+     *
      * @param response The blockchain response as a raw string.
+     * @param command The blockchain command that was executed, used to determine the context of the response.
      * @return A BlockchainStatus enum value representing the status of the parsed response.
      */
-    BlockchainStatus parseBlockchainResponse(const String &response);
-
-    /**
-     * Converts a BlockchainStatus enum value to its corresponding string representation.
-     *
-     * This method takes a BlockchainStatus enum value and returns a human-readable string
-     * that represents the status. This is useful for logging, debugging, or displaying
-     * the status in a user interface.
-     *
-     * @param status The BlockchainStatus enum value to be converted.
-     * @return A string representation of the given BlockchainStatus.
-     */
-    std::string blockchainStatusToString(BlockchainStatus status);
+    BlockchainStatus parseBlockchainResponse(const String &response, const String &command);
 
     std::string public_key_;
     std::string private_key_;

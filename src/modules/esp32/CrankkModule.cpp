@@ -28,9 +28,19 @@ ProcessMessage CrankkModule::handleReceived(const meshtastic_MeshPacket &mp)
             new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key));
         LOG_INFO("\nCrankk message received: %s\n", message);
 
-        String packetId = String(mp.id, HEX);
-        String command = "(free.mesh03.add-received-with-chain \"" + nodeId + "\" \"" + packetId + "\" \"19\")";
-        blockchainHandler->executeBlockchainCommand("send", command);
+        // Get the director's public key in order to perform the encryption
+        String get_key_command = "(free.mesh03.get-sender-details \"" + nodeId + "\")";
+        BlockchainStatus status = blockchainHandler->executeBlockchainCommand("local", get_key_command);
+        LOG_INFO("\nStatus get_key_command: %s\n", blockchainHandler->blockchainStatusToString(status).c_str());
+        if (status == BlockchainStatus::SUCCESS) {
+            String packetId = String(mp.id, HEX);
+            String secret = blockchainHandler->encryptPayload(packetId.c_str());
+            String receive_chain_command = "(free.mesh03.add-received-with-chain \"" + nodeId + "\" \"" + secret + "\" \"19\")";
+            blockchainHandler->executeBlockchainCommand("send", receive_chain_command);
+        }
+        else {
+            LOG_INFO("\nError occurred: %s\n", blockchainHandler->blockchainStatusToString(status).c_str());
+        }
     }
 
     // We only store/display messages destined for us.
