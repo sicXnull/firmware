@@ -1,13 +1,7 @@
-#include "BlockchainUtils.h"
 #include "EncryptionHandler.h"
+#include "utils.h"
 #include <memory>
 #include <string>
-
-EncryptionHandler::EncryptionHandler() {
-}
-
-EncryptionHandler::~EncryptionHandler() {
-}
 
 uint8_t *EncryptionHandler::Binhash(const struct HashVector *test)
 {
@@ -21,7 +15,6 @@ uint8_t *EncryptionHandler::Binhash(const struct HashVector *test)
     hash.finalize(value, sizeof(value));
 
     return value;
-
 }
 
 String EncryptionHandler::KDAhash(const struct HashVector *test)
@@ -53,6 +46,18 @@ void EncryptionHandler::HexToBytes(const std::string &hex, char *out)
     }
 }
 
+std::string EncryptionHandler::bytesToHex(const unsigned char *bytes, size_t length)
+{
+    std::string hexStr;
+    hexStr.reserve(length * 2); // Reserve space to avoid multiple allocations
+    for (size_t i = 0; i < length; ++i) {
+        char hex[3];
+        sprintf(hex, "%02x", bytes[i]);
+        hexStr += hex;
+    }
+    return hexStr;
+}
+
 String EncryptionHandler::generateSignature(const std::string &public_key, const std::string &private_key, const uint8_t *hashBin)
 {
     char publicKey[32];
@@ -72,16 +77,16 @@ String EncryptionHandler::generateSignature(const std::string &public_key, const
     return signHex;
 }
 
-void EncryptionHandler::add_pkcs7_padding(std::vector<unsigned char>& data, size_t block_size) {
+void EncryptionHandler::add_pkcs7_padding(std::vector<unsigned char> &data, size_t block_size)
+{
     size_t padding_size = block_size - (data.size() % block_size);
     data.insert(data.end(), padding_size, static_cast<unsigned char>(padding_size));
 }
 
-void EncryptionHandler::EvpKDF(const unsigned char *password, size_t password_len,
-                               const unsigned char *salt, size_t salt_len,
-                               unsigned char *pOutKey, size_t key_size,
-                               unsigned char *pOutIV, size_t iv_size,
-                               mbedtls_md_type_t md_type, int iterations) {
+void EncryptionHandler::EvpKDF(const unsigned char *password, size_t password_len, const unsigned char *salt, size_t salt_len,
+                               unsigned char *pOutKey, size_t key_size, unsigned char *pOutIV, size_t iv_size,
+                               mbedtls_md_type_t md_type, int iterations)
+{
     mbedtls_md_context_t md_ctx;
     mbedtls_md_init(&md_ctx);
 
@@ -103,7 +108,7 @@ void EncryptionHandler::EvpKDF(const unsigned char *password, size_t password_le
         }
         mbedtls_md_update(&md_ctx, password, password_len);
         mbedtls_md_update(&md_ctx, salt, salt_len); // Incorporate salt
-        mbedtls_md_finish(&md_ctx, block.data()); // Finalize the block
+        mbedtls_md_finish(&md_ctx, block.data());   // Finalize the block
 
         for (int i = 1; i < iterations; i++) {
             mbedtls_md_starts(&md_ctx);
@@ -125,45 +130,10 @@ void EncryptionHandler::EvpKDF(const unsigned char *password, size_t password_le
     memcpy(pOutIV, derivedKey.data() + key_size, iv_size);
 }
 
-void EncryptionHandler::logEncryptionInfo(const unsigned char* key, size_t keySize, const unsigned char* iv, size_t ivSize, const unsigned char* salt, size_t saltSize, const std::vector<unsigned char>& encryptedData) {
-    std::string keyHex;
-    for (size_t i = 0; i < keySize; ++i) {
-        char hex[3]; // Temporary buffer for each byte
-        sprintf(hex, "%02x", key[i]);
-        keyHex += hex; // Append the hex string to the result
-    }
-    LOG_INFO("Derived KEY: %s\n", keyHex.c_str());
-
-    std::string ivHex;
-    for (size_t i = 0; i < ivSize; ++i) {
-        char hex[3]; // Temporary buffer for each byte
-        sprintf(hex, "%02x", iv[i]);
-        ivHex += hex; // Append the hex string to the result
-    }
-    LOG_INFO("Derived IV: %s\n", ivHex.c_str());
-
-    // Convert and log the salt in hexadecimal format
-    std::string saltHex;
-    for (size_t i = 0; i < saltSize; ++i) {
-        char hex[3]; // Temporary buffer for each byte
-        sprintf(hex, "%02x", salt[i]);
-        saltHex += hex; // Append the hex string to the result
-    }
-    LOG_INFO("Salt: %s\n", saltHex.c_str());
-
-    std::string encryptedDataHex;
-    for (unsigned char byte : encryptedData) {
-        char hex[3]; // Temporary buffer for each byte
-        sprintf(hex, "%02x", byte);
-        encryptedDataHex += hex; // Append the hex string to the result
-    }
-    LOG_INFO("Encrypted Data: %s\n", encryptedDataHex.c_str());
-}
-
-String EncryptionHandler::encrypt(const std::string &base64PublicKey, const std::string &payload) {
+String EncryptionHandler::encrypt(const std::string &base64PublicKey, const std::string &payload)
+{
     // Initialize mbedTLS structures
     mbedtls_aes_context aes;
-
     mbedtls_pk_context pk;
     mbedtls_entropy_context entropy;
     mbedtls_ctr_drbg_context ctr_drbg;
@@ -188,7 +158,7 @@ String EncryptionHandler::encrypt(const std::string &base64PublicKey, const std:
     std::string decodedKey(binaryKey.begin(), binaryKey.end());
 
     // Convert std::string to const unsigned char*
-    const unsigned char* publicKey = reinterpret_cast<const unsigned char*>(decodedKey.c_str());
+    const unsigned char *publicKey = reinterpret_cast<const unsigned char *>(decodedKey.c_str());
     size_t publicKeyLen = decodedKey.size() + 1;
     if (mbedtls_pk_parse_public_key(&pk, publicKey, publicKeyLen) != 0) {
         LOG_ERROR("Failed to parse public key\n");
@@ -212,7 +182,8 @@ String EncryptionHandler::encrypt(const std::string &base64PublicKey, const std:
     // Encrypt the symmetric key using RSA-OAEP with SHA-256
     unsigned char buffer[512];
     size_t olen;
-    if (mbedtls_rsa_rsaes_oaep_encrypt(rsa, mbedtls_ctr_drbg_random, &ctr_drbg, MBEDTLS_RSA_PUBLIC, nullptr, 0, sizeof(symKeyHex), reinterpret_cast<const unsigned char*>(symKeyHex), buffer) != 0) {
+    if (mbedtls_rsa_rsaes_oaep_encrypt(rsa, mbedtls_ctr_drbg_random, &ctr_drbg, MBEDTLS_RSA_PUBLIC, nullptr, 0, sizeof(symKeyHex),
+                                       reinterpret_cast<const unsigned char *>(symKeyHex), buffer) != 0) {
         LOG_ERROR("RSA encryption failed\n");
         return "";
     }
@@ -226,10 +197,19 @@ String EncryptionHandler::encrypt(const std::string &base64PublicKey, const std:
     LOG_INFO("KEY: %s\n", symKeyString.c_str());
 
     // IMPORTANT: SymKeyHex must be 33 bytes (counting the null terminator), otherwise key derivation will differ from CryptoJS
-    EvpKDF(reinterpret_cast<const unsigned char*>(symKeyHex), 33, salt, 8, derivedKey, 32, derivedIV, 16, MBEDTLS_MD_MD5, 1);
+    EvpKDF(reinterpret_cast<const unsigned char *>(symKeyHex), 33, salt, 8, derivedKey, 32, derivedIV, 16, MBEDTLS_MD_MD5, 1);
+
+    std::string saltHex = bytesToHex(salt, 8);
+    LOG_INFO("Salt: %s\n", saltHex.c_str());
+
+    std::string ivHex = bytesToHex(derivedIV, 16);
+    LOG_INFO("Derived IV: %s\n", ivHex.c_str());
+
+    std::string keyHex = bytesToHex(derivedKey, 32);
+    LOG_INFO("Derived KEY: %s\n", keyHex.c_str());
 
     // Set key length to 256 bits
-    mbedtls_aes_setkey_enc(&aes, derivedKey, 256);  // Using 256-bit encryption key
+    mbedtls_aes_setkey_enc(&aes, derivedKey, 256); // Using 256-bit encryption key
 
     // Add PKCS7 padding to the payload
     std::vector<unsigned char> paddedPayload(payload.begin(), payload.end());
@@ -239,13 +219,15 @@ String EncryptionHandler::encrypt(const std::string &base64PublicKey, const std:
     std::vector<unsigned char> encryptedData(paddedPayload.size());
     unsigned char derivedIVCopy[16];
     memcpy(derivedIVCopy, derivedIV, sizeof(derivedIVCopy));
-    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, paddedPayload.size(), derivedIVCopy, paddedPayload.data(), encryptedData.data());
+    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, paddedPayload.size(), derivedIVCopy, paddedPayload.data(),
+                          encryptedData.data());
 
-    logEncryptionInfo(derivedKey, 32, derivedIV, 16, salt, 8, encryptedData);
+    std::string encryptedDataHex = bytesToHex(encryptedData.data(), encryptedData.size());
+    LOG_INFO("Encrypted Data: %s\n", encryptedDataHex.c_str());
 
     // Combine prefix, salt and encryptedData
     std::vector<unsigned char> combinedData;
-    const char* prefix = "Salted__";
+    const char *prefix = "Salted__";
     combinedData.insert(combinedData.end(), prefix, prefix + 8);
     combinedData.insert(combinedData.end(), salt, salt + sizeof(salt));
     combinedData.insert(combinedData.end(), encryptedData.begin(), encryptedData.end());
@@ -265,8 +247,6 @@ String EncryptionHandler::encrypt(const std::string &base64PublicKey, const std:
 
     // Concatenate the encoded strings with a delimiter
     String result = String(encryptedCombinedDataStr.c_str()) + ";;;;;" + String(encryptedKeyStr.c_str());
-    LOG_INFO("+++++++++ Encrypted combined Data Base64: %s\n", encryptedCombinedDataStr.c_str());
-    LOG_INFO("+++++++++ Encrypted SymKey Base64: %s\n", encryptedKeyStr.c_str());
     LOG_INFO("+++++++++ RESULT OF ENCRYPT!!!: %s\n", result.c_str());
     logLongString(result);
 

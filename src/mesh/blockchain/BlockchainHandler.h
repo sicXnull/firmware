@@ -21,8 +21,6 @@
 #include "Ed25519.h"
 #include "arduino_base64.hpp"
 
-#define HASH_SIZE 32
-
 // Define an enumeration for status codes
 enum class BlockchainStatus {
     SUCCESS,
@@ -34,7 +32,6 @@ enum class BlockchainStatus {
     NODE_NOT_FOUND,
     READY,
     NOT_DUE,
-    // Add more specific status codes as needed
 };
 
 class BlockchainHandler
@@ -52,7 +49,6 @@ class BlockchainHandler
      * Destructor for the BlockchainHandler class.
      */
     ~BlockchainHandler() = default;
-    ;
 
     /**
      * Initiates a synchronization process with the blockchain, executing required actions based on the node's current state.
@@ -75,7 +71,7 @@ class BlockchainHandler
      * @param command Specifies the blockchain command for execution on the web service.
      * @return A BlockchainStatus enumeration value indicating the result of the command execution.
      */
-    BlockchainStatus executeBlockchainCommand(String commandType, String command);
+    BlockchainStatus executeBlockchainCommand(const String &commandType, const String &command);
 
     /**
      * Encrypts a payload.

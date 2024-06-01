@@ -1,6 +1,5 @@
 #if !MESHTASTIC_EXCLUDE_WEBSERVER
 #include "BlockchainHandler.h"
-#include "BlockchainUtils.h"
 #include "FSCommon.h"
 #include "HTTPClient.h"
 #include "WiFi.h"
@@ -11,6 +10,7 @@
 #include "mbedtls/pkcs5.h"
 #include "memGet.h"
 #include "mesh/wifi/WiFiAPClient.h"
+#include "utils.h"
 #include <cstdio>
 #include <ctime>
 #include <fstream>
@@ -141,7 +141,8 @@ BlockchainStatus BlockchainHandler::parseBlockchainResponse(const String &respon
     String status = status_value->Stringify().c_str();
     LOG_INFO("Status value: %s\n", status);
 
-    BlockchainStatus returnStatus = command.indexOf("get-my-node") > 0 ? BlockchainStatus::NODE_NOT_FOUND : BlockchainStatus::FAILURE;
+    BlockchainStatus returnStatus =
+        command.indexOf("get-my-node") > 0 ? BlockchainStatus::NODE_NOT_FOUND : BlockchainStatus::FAILURE;
     if (status.startsWith("\"s")) {
         JSONObject dataRespObject = data_value->AsObject();
         JSONValue *pubkeyd_value = dataRespObject["pubkeyd"];
@@ -163,7 +164,7 @@ BlockchainStatus BlockchainHandler::parseBlockchainResponse(const String &respon
     return returnStatus;
 }
 
-BlockchainStatus BlockchainHandler::executeBlockchainCommand(String commandType, String command)
+BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &commandType, const String &command)
 {
     if (!isWifiAvailable()) {
         return BlockchainStatus::NO_WIFI;
@@ -212,7 +213,8 @@ BlockchainStatus BlockchainHandler::executeBlockchainCommand(String commandType,
     }
 }
 
-String BlockchainHandler::encryptPayload(const std::string &payload) {
+String BlockchainHandler::encryptPayload(const std::string &payload)
+{
     if (!encryptionHandler_) {
         LOG_ERROR("Encryption handler is not initialized. Encryption failed.\n");
         return "";

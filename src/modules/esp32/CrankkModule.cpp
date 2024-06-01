@@ -24,21 +24,23 @@ ProcessMessage CrankkModule::handleReceived(const meshtastic_MeshPacket &mp)
     String nodeId = String(mp.from, HEX);
     LOG_INFO("\nFrom node id: %s\n", nodeId);
     if (message == "CR24" && nodeId != "0") {
+        LOG_INFO("\nCrankk message received: %s\n", message);
+
         std::unique_ptr<BlockchainHandler> blockchainHandler(
             new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key));
-        LOG_INFO("\nCrankk message received: %s\n", message);
 
         // Get the director's public key in order to perform the encryption
         String get_key_command = "(free.mesh03.get-sender-details \"" + nodeId + "\")";
-        BlockchainStatus status = blockchainHandler->executeBlockchainCommand("local", get_key_command);
-        LOG_INFO("\nStatus get_key_command: %s\n", blockchainHandler->blockchainStatusToString(status).c_str());
+        BlockchainStatus status_local = blockchainHandler->executeBlockchainCommand("local", get_key_command);
+        LOG_INFO("\nStatus 'get-sender-details': %s\n", blockchainHandler->blockchainStatusToString(status_local).c_str());
         if (status == BlockchainStatus::SUCCESS) {
             String packetId = String(mp.id, HEX);
             String secret = blockchainHandler->encryptPayload(packetId.c_str());
-            String receive_chain_command = "(free.mesh03.add-received-with-chain \"" + nodeId + "\" \"" + secret + "\" \"19\")";
-            blockchainHandler->executeBlockchainCommand("send", receive_chain_command);
-        }
-        else {
+            String received_chain_command = "(free.mesh03.add-received-with-chain \"" + nodeId + "\" \"" + secret + "\" \"19\")";
+            BlockchainStatus status_send = blockchainHandler->executeBlockchainCommand("send", received_chain_command);
+            LOG_INFO("\nStatus 'add-received-with-chain': %s\n",
+                     blockchainHandler->blockchainStatusToString(status_send).c_str());
+        } else {
             LOG_INFO("\nError occurred: %s\n", blockchainHandler->blockchainStatusToString(status).c_str());
         }
     }

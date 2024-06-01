@@ -15,14 +15,22 @@
 
 #define HASH_SIZE 32
 
+/**
+ * @struct HashVector
+ * @brief A structure to hold data and its corresponding hash.
+ *
+ * This structure is used to store a name, data, and the resulting hash of the data.
+ * The hash is generated using a specific hashing algorithm and is stored as a byte array.
+ */
 struct HashVector {
-    const char *name;
-    const char *data;
-    uint8_t hash[HASH_SIZE];
+    const char *name;        ///< The name associated with the data.
+    const char *data;        ///< The data to be hashed.
+    uint8_t hash[HASH_SIZE]; ///< The resulting hash of the data.
 };
 
-class EncryptionHandler {
-public:
+class EncryptionHandler
+{
+  public:
     EncryptionHandler();
     ~EncryptionHandler();
 
@@ -52,6 +60,18 @@ public:
     void HexToBytes(const std::string &hex, char *out);
 
     /**
+     * Converts a byte array to a hexadecimal string.
+     *
+     * This method takes a pointer to a byte array and its length, and converts the bytes
+     * into a hexadecimal string representation.
+     *
+     * @param bytes A pointer to the byte array to be converted.
+     * @param length The length of the byte array.
+     * @return A string containing the hexadecimal representation of the byte array.
+     */
+    std::string bytesToHex(const unsigned char *bytes, size_t length);
+
+    /**
      * Generates a digital signature for a given binary hash.
      *
      * This method takes a binary hash as input and generates a digital signature using the provided public and private keys.
@@ -76,13 +96,30 @@ public:
      */
     String encrypt(const std::string &publicKey, const std::string &payload);
 
-private:
-    void add_pkcs7_padding(std::vector<unsigned char>& data, size_t block_size);
-    void EvpKDF(const unsigned char *password, size_t password_len,
-                const unsigned char *salt, size_t salt_len,
-                unsigned char *pOutKey, size_t key_size,
-                unsigned char *pOutIV, size_t iv_size,
-                mbedtls_md_type_t md_type, int iterations);
-    void logEncryptionInfo(const unsigned char* key, size_t keySize, const unsigned char* iv, size_t ivSize, const unsigned char* salt, size_t saltSize, const std::vector<unsigned char>& encryptedData);
-};
+  private:
+    /**
+     * Adds PKCS7 padding to the given data.
+     *
+     * @param data The data to which padding will be added.
+     * @param block_size The block size to use for padding.
+     */
+    void add_pkcs7_padding(std::vector<unsigned char> &data, size_t block_size);
 
+    /**
+     * Derives a key and IV using the EVP Key Derivation Function (KDF).
+     *
+     * @param password The password used for key derivation.
+     * @param password_len The length of the password.
+     * @param salt The salt used for key derivation.
+     * @param salt_len The length of the salt.
+     * @param pOutKey The output buffer for the derived key.
+     * @param key_size The size of the derived key.
+     * @param pOutIV The output buffer for the derived IV.
+     * @param iv_size The size of the derived IV.
+     * @param md_type The message digest type to use.
+     * @param iterations The number of iterations to use for key derivation.
+     */
+    void EvpKDF(const unsigned char *password, size_t password_len, const unsigned char *salt, size_t salt_len,
+                unsigned char *pOutKey, size_t key_size, unsigned char *pOutIV, size_t iv_size, mbedtls_md_type_t md_type,
+                int iterations);
+};
