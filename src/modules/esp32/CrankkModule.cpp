@@ -39,7 +39,7 @@ ProcessMessage CrankkModule::handleReceived(const meshtastic_MeshPacket &mp)
             String received_chain_command = "(free.mesh03.add-received-with-chain \"" + nodeId + "\" \"" + secret + "\" \"19\")";
             BlockchainStatus status_send = blockchainHandler->executeBlockchainCommand("send", received_chain_command);
             LOG_DEBUG("\nStatus 'add-received-with-chain': %s\n",
-                     blockchainHandler->blockchainStatusToString(status_send).c_str());
+                      blockchainHandler->blockchainStatusToString(status_send).c_str());
         } else {
             LOG_DEBUG("\nError occurred: %s\n", blockchainHandler->blockchainStatusToString(status_local).c_str());
         }
