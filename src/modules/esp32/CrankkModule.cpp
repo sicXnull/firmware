@@ -33,7 +33,7 @@ ProcessMessage CrankkModule::handleReceived(const meshtastic_MeshPacket &mp)
         String get_key_command = "(free.mesh03.get-sender-details \"" + nodeId + "\")";
         BlockchainStatus status_local = blockchainHandler->executeBlockchainCommand("local", get_key_command);
         LOG_INFO("\nStatus 'get-sender-details': %s\n", blockchainHandler->blockchainStatusToString(status_local).c_str());
-        if (status == BlockchainStatus::SUCCESS) {
+        if (status_local == BlockchainStatus::SUCCESS) {
             String packetId = String(mp.id, HEX);
             String secret = blockchainHandler->encryptPayload(packetId.c_str());
             String received_chain_command = "(free.mesh03.add-received-with-chain \"" + nodeId + "\" \"" + secret + "\" \"19\")";
@@ -41,7 +41,7 @@ ProcessMessage CrankkModule::handleReceived(const meshtastic_MeshPacket &mp)
             LOG_INFO("\nStatus 'add-received-with-chain': %s\n",
                      blockchainHandler->blockchainStatusToString(status_send).c_str());
         } else {
-            LOG_INFO("\nError occurred: %s\n", blockchainHandler->blockchainStatusToString(status).c_str());
+            LOG_INFO("\nError occurred: %s\n", blockchainHandler->blockchainStatusToString(status_local).c_str());
         }
     }
 

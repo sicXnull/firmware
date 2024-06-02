@@ -31,8 +31,8 @@ struct HashVector {
 class EncryptionHandler
 {
   public:
-    EncryptionHandler();
-    ~EncryptionHandler();
+    EncryptionHandler() = default;
+    ~EncryptionHandler() = default;
 
     /**
      * Generates a binary hash from the given HashVector.
