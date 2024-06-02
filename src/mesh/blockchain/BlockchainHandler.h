@@ -1,5 +1,5 @@
 #pragma once
-#include "BLAKE2b.h"
+#include "EncryptionHandler.h"
 #include "NodeDB.h"
 #include "RTC.h"
 #include "Router.h"
@@ -21,11 +21,10 @@
 #include "Ed25519.h"
 #include "arduino_base64.hpp"
 
-#define HASH_SIZE 32
-
 // Define an enumeration for status codes
 enum class BlockchainStatus {
-    OK,
+    SUCCESS,
+    FAILURE,
     NO_WIFI,
     HTTP_ERROR,
     EMPTY_RESPONSE,
@@ -33,7 +32,6 @@ enum class BlockchainStatus {
     NODE_NOT_FOUND,
     READY,
     NOT_DUE,
-    // Add more specific status codes as needed
 };
 
 class BlockchainHandler
@@ -51,7 +49,6 @@ class BlockchainHandler
      * Destructor for the BlockchainHandler class.
      */
     ~BlockchainHandler() = default;
-    ;
 
     /**
      * Initiates a synchronization process with the blockchain, executing required actions based on the node's current state.
@@ -74,7 +71,31 @@ class BlockchainHandler
      * @param command Specifies the blockchain command for execution on the web service.
      * @return A BlockchainStatus enumeration value indicating the result of the command execution.
      */
-    BlockchainStatus executeBlockchainCommand(String commandType, String command);
+    BlockchainStatus executeBlockchainCommand(const String &commandType, const String &command);
+
+    /**
+     * Encrypts a payload.
+     *
+     * This method encrypts the provided payload using the director's public key.
+     * The encryption process involves generating a symmetric key, encrypting the payload with AES,
+     * and then encrypting the symmetric key with RSA.
+     *
+     * @param payload The data to be encrypted.
+     * @return A string containing the encrypted payload.
+     */
+    String encryptPayload(const std::string &payload);
+
+    /**
+     * Converts a BlockchainStatus enum value to its corresponding string representation.
+     *
+     * This method takes a BlockchainStatus enum value and returns a human-readable string
+     * that represents the status. This is useful for logging, debugging, or displaying
+     * the status in a user interface.
+     *
+     * @param status The BlockchainStatus enum value to be converted.
+     * @return A string representation of the given BlockchainStatus.
+     */
+    std::string blockchainStatusToString(BlockchainStatus status);
 
   private:
     /**
@@ -85,43 +106,6 @@ class BlockchainHandler
      * @return True if the wallet configuration is valid, otherwise false.
      */
     bool isWalletConfigValid();
-
-    /**
-     * Generates a binary hash from the given HashVector.
-     *
-     * @param hash A pointer to the BLAKE2b object.
-     * @param test A pointer to the HashVector containing the data to hash.
-     * @return A pointer to the resulting binary hash.
-     */
-    uint8_t *Binhash(BLAKE2b *hash, const struct HashVector *test);
-
-    /**
-     * Generates a Kadena hash from the given HashVector.
-     *
-     * @param hash A pointer to the BLAKE2b object.
-     * @param test A pointer to the HashVector containing the data to hash.
-     * @return A String containing the Kadena hash.
-     */
-    String KDAhash(BLAKE2b *hash, const struct HashVector *test);
-
-    /**
-     * Converts a hexadecimal string to a byte array.
-     *
-     * @param hex The hexadecimal string to convert.
-     * @param out A pointer to the output byte array.
-     */
-    void HexToBytes(const std::string &hex, char *out);
-
-    /**
-     * Generates a digital signature for a given binary hash.
-     *
-     * This method takes a binary hash as input and generates a digital signature using the private key associated with the
-     * blockchain handler. The signature is used to authenticate transactions or data when interacting with the blockchain.
-     *
-     * @param hashBin A pointer to the binary hash that needs to be signed.
-     * @return A String containing the hexadecimal representation of the digital signature.
-     */
-    String generateSignature(const uint8_t *hashBin);
 
     /**
      * Creates a JSON object representing a blockchain command.
@@ -152,13 +136,20 @@ class BlockchainHandler
      * This method takes a blockchain response in the form of a string, parses it, and extracts
      * relevant information, making it easier to handle the response programmatically.
      *
+     * The method first attempts to parse the response string into a JSON object. If the parsing
+     * fails, it returns a PARSING_ERROR status. It then examines the "result" field of the JSON
+     * object to determine the status of the blockchain command. Depending on the command type,
+     * it extracts specific information such as the director's public key and the send status.
+     *
      * @param response The blockchain response as a raw string.
+     * @param command The blockchain command that was executed, used to determine the context of the response.
      * @return A BlockchainStatus enum value representing the status of the parsed response.
      */
-    BlockchainStatus parseBlockchainResponse(const String &response);
+    BlockchainStatus parseBlockchainResponse(const String &response, const String &command);
 
     std::string public_key_;
     std::string private_key_;
     String kda_server_;
-    BLAKE2b blake2b_;
+    std::string director_pubkeyd_;
+    std::unique_ptr<EncryptionHandler> encryptionHandler_;
 };
