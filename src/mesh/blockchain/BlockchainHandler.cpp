@@ -18,6 +18,17 @@
 #include <memory>
 #include <sstream>
 
+// Redefine strptime to avoid IRAM issue when using the HTTPClient functions
+char *strptime(const char *str, const char *format, struct tm *tm)
+{
+    if (sscanf(str, format, &tm->tm_year, &tm->tm_mon, &tm->tm_mday, &tm->tm_hour, &tm->tm_min, &tm->tm_sec) == 6) {
+        tm->tm_year -= 1900; // Adjust year to be relative to 1900
+        tm->tm_mon -= 1;     // Adjust month to be 0-based
+        return (char *)(str + strlen(str));
+    }
+    return NULL;
+}
+
 BlockchainHandler::BlockchainHandler(const std::string public_key, const std::string private_key)
     : public_key_(public_key), private_key_(private_key)
 {

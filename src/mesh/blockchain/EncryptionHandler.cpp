@@ -1,3 +1,4 @@
+#if !MESHTASTIC_EXCLUDE_WEBSERVER
 #include "EncryptionHandler.h"
 #include "utils.h"
 #include <memory>
@@ -258,3 +259,4 @@ String EncryptionHandler::encrypt(const std::string &base64PublicKey, const std:
 
     return result;
 }
+#endif
