@@ -111,7 +111,7 @@ class EncryptionHandler
      * Implemented C++ version of the EvpKDF key derivation algorithm used by CryptoJS:
      * https://github.com/CryptoStore/crypto-js/blob/3.1.2/src/cipher-core.js#L753
      * https://github.com/CryptoStore/crypto-js/blob/3.1.2/src/evpkdf.js#L55
-     * 
+     *
      * @param password The password used for key derivation.
      * @param password_len The length of the password.
      * @param salt The salt used for key derivation.
