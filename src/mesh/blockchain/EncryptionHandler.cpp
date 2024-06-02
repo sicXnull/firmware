@@ -194,19 +194,19 @@ String EncryptionHandler::encrypt(const std::string &base64PublicKey, const std:
     mbedtls_ctr_drbg_random(&ctr_drbg, salt, sizeof(salt));
     unsigned char derivedKey[32], derivedIV[16];
     std::string symKeyString = std::string(symKeyHex);
-    LOG_INFO("KEY: %s\n", symKeyString.c_str());
+    LOG_DEBUG("KEY: %s\n", symKeyString.c_str());
 
     // IMPORTANT: SymKeyHex must be 33 bytes (counting the null terminator), otherwise key derivation will differ from CryptoJS
     EvpKDF(reinterpret_cast<const unsigned char *>(symKeyHex), 33, salt, 8, derivedKey, 32, derivedIV, 16, MBEDTLS_MD_MD5, 1);
 
     std::string saltHex = bytesToHex(salt, 8);
-    LOG_INFO("Salt: %s\n", saltHex.c_str());
+    LOG_DEBUG("Salt: %s\n", saltHex.c_str());
 
     std::string ivHex = bytesToHex(derivedIV, 16);
-    LOG_INFO("Derived IV: %s\n", ivHex.c_str());
+    LOG_DEBUG("Derived IV: %s\n", ivHex.c_str());
 
     std::string keyHex = bytesToHex(derivedKey, 32);
-    LOG_INFO("Derived KEY: %s\n", keyHex.c_str());
+    LOG_DEBUG("Derived KEY: %s\n", keyHex.c_str());
 
     // Set key length to 256 bits
     mbedtls_aes_setkey_enc(&aes, derivedKey, 256); // Using 256-bit encryption key
@@ -223,7 +223,7 @@ String EncryptionHandler::encrypt(const std::string &base64PublicKey, const std:
                           encryptedData.data());
 
     std::string encryptedDataHex = bytesToHex(encryptedData.data(), encryptedData.size());
-    LOG_INFO("Encrypted Data: %s\n", encryptedDataHex.c_str());
+    LOG_DEBUG("Encrypted Data: %s\n", encryptedDataHex.c_str());
 
     // Combine prefix, salt and encryptedData
     std::vector<unsigned char> combinedData;
@@ -247,7 +247,7 @@ String EncryptionHandler::encrypt(const std::string &base64PublicKey, const std:
 
     // Concatenate the encoded strings with a delimiter
     String result = String(encryptedCombinedDataStr.c_str()) + ";;;;;" + String(encryptedKeyStr.c_str());
-    LOG_INFO("+++++++++ RESULT OF ENCRYPT!!!: %s\n", result.c_str());
+    LOG_DEBUG("+++++++++ RESULT OF ENCRYPT!!!:\n");
     logLongString(result);
 
     // Cleanup

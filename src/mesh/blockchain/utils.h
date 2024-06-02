@@ -35,12 +35,12 @@ inline void logLongString(const String &str, size_t chunkSize = 50)
 {
     size_t len = str.length();
     if (len <= chunkSize) {
-        LOG_INFO("%s\n", str.c_str());
+        LOG_DEBUG("%s\n", str.c_str());
     } else {
         size_t i = 0;
         while (i < len) {
             size_t end = std::min(i + chunkSize, len);
-            LOG_INFO("%s\n", str.substring(i, end).c_str());
+            LOG_DEBUG("%s\n", str.substring(i, end).c_str());
             i = end;
         }
     }

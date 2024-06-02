@@ -32,8 +32,8 @@ bool BlockchainHandler::isWalletConfigValid()
 
 int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
 {
-    LOG_INFO("\nWallet public key: %s\n", public_key_.data());
-    LOG_INFO("\nWallet private key: %s\n", private_key_.data());
+    LOG_DEBUG("\nWallet public key: %s\n", public_key_.data());
+    LOG_DEBUG("\nWallet private key: %s\n", private_key_.data());
 
     if (!isWalletConfigValid() || !isWifiAvailable()) {
         return 300000; // Every 5 minutes.
@@ -41,10 +41,10 @@ int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
     char nodeIdHex[9];
     sprintf(nodeIdHex, "%08x", nodeDB->getNodeNum());
     String nodeId = String(nodeIdHex);
-    LOG_INFO("\nMy node id: %s\n", nodeId);
+    LOG_DEBUG("\nMy node id: %s\n", nodeId);
 
     BlockchainStatus status = executeBlockchainCommand("local", "(free.mesh03.get-my-node)");
-    LOG_INFO("\nResponse: %s\n", blockchainStatusToString(status).c_str());
+    LOG_DEBUG("\nResponse: %s\n", blockchainStatusToString(status).c_str());
 
     if (status == BlockchainStatus::READY) { // node exists, due for sending
         uint32_t packetId = generatePacketId();
@@ -54,20 +54,20 @@ int32_t BlockchainHandler::performNodeSync(HttpAPI *webAPI)
         if (status == BlockchainStatus::SUCCESS) {
             // Only send the radio beacon if the update-sent command is successful
             webAPI->sendSecret(packetId);
-            LOG_INFO("\nUpdate sent successfully\n");
+            LOG_DEBUG("\nUpdate sent successfully\n");
         } else {
-            LOG_INFO("\nUpdate sent failed: %s\n", blockchainStatusToString(status).c_str());
+            LOG_DEBUG("\nUpdate sent failed: %s\n", blockchainStatusToString(status).c_str());
         }
     } else if (status == BlockchainStatus::NODE_NOT_FOUND) { // node doesn't exist, insert it
         status = executeBlockchainCommand("send", "(free.mesh03.insert-my-node \"" + nodeId + "\")");
-        LOG_INFO("\nNode insert local response: %s\n", blockchainStatusToString(status).c_str());
+        LOG_DEBUG("\nNode insert local response: %s\n", blockchainStatusToString(status).c_str());
     } else if (status == BlockchainStatus::NOT_DUE) { // node exists, not due for sending
-        LOG_INFO("\n%s\n", "DON'T SEND");
+        LOG_DEBUG("\n%s\n", "DON'T SEND beacon");
     } else {
-        LOG_INFO("\nError occurred: %s\n", blockchainStatusToString(status).c_str());
+        LOG_DEBUG("\nError occurred: %s\n", blockchainStatusToString(status).c_str());
     }
     auto newHeap = memGet.getFreeHeap();
-    LOG_INFO("Free heap: %d\n", newHeap);
+    LOG_TRACE("Free heap: %d\n", newHeap);
     return 300000; // Every 5 minutes. That should be enough for previous txn to be complete
 }
 
@@ -111,11 +111,6 @@ JSONObject BlockchainHandler::preparePostObject(const JSONObject &cmdObject, con
 
     uint8_t *hashBin = encryptionHandler_->Binhash(&vector);
     String hash = encryptionHandler_->KDAhash(&vector);
-    // LOG_INFO("\n%s\n", hash.c_str());
-
-    // for (uint8_t i = 0; i < HASH_SIZE; i++) {
-    //     LOG_INFO("%d,%d\n", i, hashBin[i]);
-    // }
 
     String signHex = encryptionHandler_->generateSignature(public_key_, private_key_, hashBin);
     postObject["hash"] = new JSONValue(hash.c_str());
@@ -139,7 +134,7 @@ BlockchainStatus BlockchainHandler::parseBlockchainResponse(const String &respon
     JSONValue *data_value = resultObject["data"];
     JSONValue *status_value = resultObject["status"];
     String status = status_value->Stringify().c_str();
-    LOG_INFO("Status value: %s\n", status);
+    LOG_TRACE("Status value: %s\n", status);
 
     BlockchainStatus returnStatus =
         command.indexOf("get-my-node") > 0 ? BlockchainStatus::NODE_NOT_FOUND : BlockchainStatus::FAILURE;
@@ -147,7 +142,7 @@ BlockchainStatus BlockchainHandler::parseBlockchainResponse(const String &respon
         JSONObject dataRespObject = data_value->AsObject();
         JSONValue *pubkeyd_value = dataRespObject["pubkeyd"];
         director_pubkeyd_ = pubkeyd_value->AsString();
-        LOG_INFO("Director PUBKEYD: %s\n", director_pubkeyd_.c_str());
+        LOG_DEBUG("Director PUBKEYD: %s\n", director_pubkeyd_.c_str());
 
         if (command.indexOf("get-my-node") > 0) {
             JSONValue *send_value = dataRespObject["send"];
@@ -192,12 +187,12 @@ BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &comma
 
     http.setTimeout(15000);
     int httpResponseCode = http.POST(postRaw);
-    LOG_INFO("Kadena HTTP response %d\n", httpResponseCode);
+    LOG_DEBUG("Kadena HTTP response %d\n", httpResponseCode);
     String response = http.getString();
     logLongString(response);
 
     http.end();
-    LOG_INFO("Called HTTP end\n");
+    LOG_TRACE("Called HTTP end\n");
     // Handle HTTP response codes
     if (httpResponseCode < 0 || (httpResponseCode >= 400 && httpResponseCode <= 599)) {
         return BlockchainStatus::HTTP_ERROR;

@@ -12,19 +12,19 @@ ProcessMessage CrankkModule::handleReceived(const meshtastic_MeshPacket &mp)
 {
 #ifdef DEBUG_PORT
     auto &p = mp.decoded;
-    LOG_INFO("Received crankk msg from=0x%0x, id=0x%x, msg=%.*s\n", mp.from, mp.id, p.payload.size, p.payload.bytes);
+    LOG_DEBUG("Received crankk msg from=0x%0x, id=0x%x, msg=%.*s\n", mp.from, mp.id, p.payload.size, p.payload.bytes);
 #endif
 
     String message = "";
     char msg[237];
     sprintf(msg, "%s", p.payload.bytes);
     message += msg;
-    LOG_INFO("\nCrankk message received: %s\n", message);
+    LOG_DEBUG("\nCrankk message received: %s\n", message);
 
     String nodeId = String(mp.from, HEX);
-    LOG_INFO("\nFrom node id: %s\n", nodeId);
+    LOG_DEBUG("\nFrom node id: %s\n", nodeId);
     if (message == "CR24" && nodeId != "0") {
-        LOG_INFO("\nCrankk message received: %s\n", message);
+        LOG_DEBUG("\nCrankk message received: %s\n", message);
 
         std::unique_ptr<BlockchainHandler> blockchainHandler(
             new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key));
@@ -32,16 +32,16 @@ ProcessMessage CrankkModule::handleReceived(const meshtastic_MeshPacket &mp)
         // Get the director's public key in order to perform the encryption
         String get_key_command = "(free.mesh03.get-sender-details \"" + nodeId + "\")";
         BlockchainStatus status_local = blockchainHandler->executeBlockchainCommand("local", get_key_command);
-        LOG_INFO("\nStatus 'get-sender-details': %s\n", blockchainHandler->blockchainStatusToString(status_local).c_str());
+        LOG_DEBUG("\nStatus 'get-sender-details': %s\n", blockchainHandler->blockchainStatusToString(status_local).c_str());
         if (status_local == BlockchainStatus::SUCCESS) {
             String packetId = String(mp.id, HEX);
             String secret = blockchainHandler->encryptPayload(packetId.c_str());
             String received_chain_command = "(free.mesh03.add-received-with-chain \"" + nodeId + "\" \"" + secret + "\" \"19\")";
             BlockchainStatus status_send = blockchainHandler->executeBlockchainCommand("send", received_chain_command);
-            LOG_INFO("\nStatus 'add-received-with-chain': %s\n",
+            LOG_DEBUG("\nStatus 'add-received-with-chain': %s\n",
                      blockchainHandler->blockchainStatusToString(status_send).c_str());
         } else {
-            LOG_INFO("\nError occurred: %s\n", blockchainHandler->blockchainStatusToString(status_local).c_str());
+            LOG_DEBUG("\nError occurred: %s\n", blockchainHandler->blockchainStatusToString(status_local).c_str());
         }
     }
 
