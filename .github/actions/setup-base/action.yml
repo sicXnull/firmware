@@ -11,10 +11,10 @@ runs:
         ref: ${{github.event.pull_request.head.ref}}
         repository: ${{github.event.pull_request.head.repo.full_name}}
 
-    - name: Install dependencies
+    - name: Install dependencies 
       shell: bash
       run: |
-        sudo apt-get -y update
+        sudo apt-get -y update 
         sudo apt-get install -y cppcheck libbluetooth-dev libgpiod-dev libyaml-cpp-dev
 
     - name: Setup Python
