@@ -103,12 +103,6 @@ jobs:
     with:
       board: ${{ matrix.board }}
 
-  package-raspbian:
-    uses: ./.github/workflows/package_raspbian.yml
-
-  package-raspbian-armv7l:
-    uses: ./.github/workflows/package_raspbian_armv7l.yml
-
   package-native:
     uses: ./.github/workflows/package_amd64.yml
 
@@ -134,9 +128,7 @@ jobs:
         build-esp32-c3,
         build-nrf52,
         build-rpi2040,
-        package-raspbian,
-        package-raspbian-armv7l,
-        package-native
+        package-native,
       ]
     steps:
       - name: Checkout code
@@ -301,36 +293,6 @@ jobs:
           asset_path: ./debug-elfs-${{ steps.version.outputs.version }}.zip
           asset_name: debug-elfs-${{ steps.version.outputs.version }}.zip
           asset_content_type: application/zip
-
-      - name: Add raspbian aarch64 .deb
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./output/meshtasticd_${{ steps.version.outputs.version }}_arm64.deb
-          asset_name: meshtasticd_${{ steps.version.outputs.version }}_arm64.deb
-          asset_content_type: application/vnd.debian.binary-package
-
-      - name: Add raspbian armv7l .deb
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./output/meshtasticd_${{ steps.version.outputs.version }}_armhf.deb
-          asset_name: meshtasticd_${{ steps.version.outputs.version }}_armhf.deb
-          asset_content_type: application/vnd.debian.binary-package
-
-      - name: Add raspbian amd64 .deb
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./output/meshtasticd_${{ steps.version.outputs.version }}_amd64.deb
-          asset_name: meshtasticd_${{ steps.version.outputs.version }}_amd64.deb
-          asset_content_type: application/vnd.debian.binary-package
 
       - name: Bump version.properties
         run: >-
