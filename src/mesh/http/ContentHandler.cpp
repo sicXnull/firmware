@@ -56,11 +56,29 @@ static int32_t callBlockchain()
     return blockchainHandler->performNodeSync(&webAPI);
 }
 
+void addCORSHeaders(HTTPResponse *res) {
+    res->setHeader("Access-Control-Allow-Origin", "*");
+    res->setHeader("Access-Control-Allow-Headers", "*");
+    res->setHeader("Access-Control-Allow-Methods", "*");
+}
+
+void handleOptions(HTTPRequest *req, HTTPResponse *res) {
+    // Add CORS headers
+    addCORSHeaders(res);
+
+    // Respond with 204 No Content
+    res->setStatusCode(204);
+}
+
 void registerHandlers(HTTPServer *insecureServer, HTTPSServer *secureServer)
 {
 
     // For every resource available on the server, we need to create a ResourceNode
     // The ResourceNode links URL and HTTP method to a handler function
+
+    ResourceNode *nodeOptions = new ResourceNode("/*", "OPTIONS", &handleOptions);
+    secureServer->registerNode(nodeOptions);
+    insecureServer->registerNode(nodeOptions);
 
     ResourceNode *nodeAPIv1ToRadioOptions = new ResourceNode("/api/v1/toradio", "OPTIONS", &handleAPIv1ToRadio);
     ResourceNode *nodeAPIv1ToRadio = new ResourceNode("/api/v1/toradio", "PUT", &handleAPIv1ToRadio);
@@ -151,10 +169,11 @@ void handleAPIv1FromRadio(HTTPRequest *req, HTTPResponse *res)
 
     // Status code is 200 OK by default.
     res->setHeader("Content-Type", "application/x-protobuf");
-    res->setHeader("Access-Control-Allow-Origin", "*");
-    res->setHeader("Access-Control-Allow-Methods", "GET");
+    addCORSHeaders(res);
+    // res->setHeader("Access-Control-Allow-Origin", "*");
+    // res->setHeader("Access-Control-Allow-Methods", "GET");
     res->setHeader("X-Protobuf-Schema", "https://raw.githubusercontent.com/meshtastic/protobufs/master/mesh.proto");
-
+    
     uint8_t txBuf[MAX_STREAM_BUF_SIZE];
     uint32_t len = 1;
 
@@ -194,11 +213,12 @@ void handleAPIv1ToRadio(HTTPRequest *req, HTTPResponse *res)
     */
 
     res->setHeader("Content-Type", "application/x-protobuf");
-    res->setHeader("Access-Control-Allow-Headers", "Content-Type");
-    res->setHeader("Access-Control-Allow-Origin", "*");
-    res->setHeader("Access-Control-Allow-Methods", "PUT, OPTIONS");
+    addCORSHeaders(res);
+    // res->setHeader("Access-Control-Allow-Headers", "Content-Type");
+    // res->setHeader("Access-Control-Allow-Origin", "*");
+    // res->setHeader("Access-Control-Allow-Methods", "PUT, OPTIONS");
     res->setHeader("X-Protobuf-Schema", "https://raw.githubusercontent.com/meshtastic/protobufs/master/mesh.proto");
-
+    
     if (req->getMethod() == "OPTIONS") {
         res->setStatusCode(204); // Success with no content
         // res->print(""); @todo remove
@@ -295,10 +315,11 @@ JSONArray htmlListDir(const char *dirname, uint8_t levels)
 
 void handleFsBrowseStatic(HTTPRequest *req, HTTPResponse *res)
 {
+    LOG_INFO("handleFsBrowseStatic\n");
     res->setHeader("Content-Type", "application/json");
-    res->setHeader("Access-Control-Allow-Origin", "*");
-    res->setHeader("Access-Control-Allow-Methods", "GET");
-
+    // res->setHeader("Access-Control-Allow-Origin", "*");
+    // res->setHeader("Access-Control-Allow-Methods", "GET");
+    addCORSHeaders(res);
     auto fileList = htmlListDir("/static", 10);
 
     // create json output structure
@@ -324,12 +345,15 @@ void handleFsBrowseStatic(HTTPRequest *req, HTTPResponse *res)
 
 void handleFsDeleteStatic(HTTPRequest *req, HTTPResponse *res)
 {
+    LOG_INFO("handleFsDeleteStatic\n");
     ResourceParameters *params = req->getParams();
     std::string paramValDelete;
 
     res->setHeader("Content-Type", "application/json");
-    res->setHeader("Access-Control-Allow-Origin", "*");
-    res->setHeader("Access-Control-Allow-Methods", "DELETE");
+    // res->setHeader("Access-Control-Allow-Origin", "*");
+    // res->setHeader("Access-Control-Allow-Methods", "DELETE");
+    addCORSHeaders(res);
+
     if (params->getQueryParameter("delete", paramValDelete)) {
         std::string pathDelete = "/" + paramValDelete;
         if (FSCom.remove(pathDelete.c_str())) {
@@ -354,6 +378,8 @@ void handleFsDeleteStatic(HTTPRequest *req, HTTPResponse *res)
 
 void handleStatic(HTTPRequest *req, HTTPResponse *res)
 {
+    LOG_INFO("handleStatic\n");
+    addCORSHeaders(res);
     // Get access to the parameters
     ResourceParameters *params = req->getParams();
 
@@ -563,6 +589,7 @@ void handleFormUpload(HTTPRequest *req, HTTPResponse *res)
 
 void handleReport(HTTPRequest *req, HTTPResponse *res)
 {
+    LOG_INFO("handleReport\n");
     ResourceParameters *params = req->getParams();
     std::string content;
 
@@ -572,13 +599,14 @@ void handleReport(HTTPRequest *req, HTTPResponse *res)
 
     if (content == "json") {
         res->setHeader("Content-Type", "application/json");
-        res->setHeader("Access-Control-Allow-Origin", "*");
-        res->setHeader("Access-Control-Allow-Methods", "GET");
+        // res->setHeader("Access-Control-Allow-Origin", "*");
+        // res->setHeader("Access-Control-Allow-Methods", "GET");
+        addCORSHeaders(res);
     } else {
         res->setHeader("Content-Type", "text/html");
         res->println("<pre>");
     }
-
+    
     // data->airtime->tx_log
     JSONArray txLogValues;
     uint32_t *logArray;
@@ -678,18 +706,20 @@ void handleHotspot(HTTPRequest *req, HTTPResponse *res)
     // Status code is 200 OK by default.
     // We want to deliver a simple HTML page, so we send a corresponding content type:
     res->setHeader("Content-Type", "text/html");
-    res->setHeader("Access-Control-Allow-Origin", "*");
-    res->setHeader("Access-Control-Allow-Methods", "GET");
-
+    // res->setHeader("Access-Control-Allow-Origin", "*");
+    // res->setHeader("Access-Control-Allow-Methods", "GET");
+    addCORSHeaders(res);
     // res->println("<!DOCTYPE html>");
     res->println("<meta http-equiv=\"refresh\" content=\"0;url=/\" />\n");
 }
 
 void handleDeleteFsContent(HTTPRequest *req, HTTPResponse *res)
 {
+    LOG_INFO("handleDeleteFsContent\n");
     res->setHeader("Content-Type", "text/html");
-    res->setHeader("Access-Control-Allow-Origin", "*");
-    res->setHeader("Access-Control-Allow-Methods", "GET");
+    // res->setHeader("Access-Control-Allow-Origin", "*");
+    // res->setHeader("Access-Control-Allow-Methods", "GET");
+    addCORSHeaders(res);
 
     res->println("<h1>Meshtastic</h1>\n");
     res->println("Deleting Content in /static/*");
@@ -703,9 +733,12 @@ void handleDeleteFsContent(HTTPRequest *req, HTTPResponse *res)
 
 void handleAdmin(HTTPRequest *req, HTTPResponse *res)
 {
+    LOG_INFO("handleAdmin\n");
     res->setHeader("Content-Type", "text/html");
-    res->setHeader("Access-Control-Allow-Origin", "*");
-    res->setHeader("Access-Control-Allow-Methods", "GET");
+    // res->setHeader("Access-Control-Allow-Origin", "*");
+    // res->setHeader("Access-Control-Allow-Methods", "GET");
+
+    addCORSHeaders(res);
 
     res->println("<h1>Meshtastic</h1>\n");
     //    res->println("<a href=/admin/settings>Settings</a><br>\n");
@@ -715,9 +748,12 @@ void handleAdmin(HTTPRequest *req, HTTPResponse *res)
 
 void handleAdminSettings(HTTPRequest *req, HTTPResponse *res)
 {
+    LOG_INFO("handleAdminSettings\n");
     res->setHeader("Content-Type", "text/html");
-    res->setHeader("Access-Control-Allow-Origin", "*");
-    res->setHeader("Access-Control-Allow-Methods", "GET");
+    // res->setHeader("Access-Control-Allow-Origin", "*");
+    // res->setHeader("Access-Control-Allow-Methods", "GET");
+
+    addCORSHeaders(res);
 
     res->println("<h1>Meshtastic</h1>\n");
     res->println("This isn't done.\n");
@@ -737,9 +773,11 @@ void handleAdminSettings(HTTPRequest *req, HTTPResponse *res)
 
 void handleAdminSettingsApply(HTTPRequest *req, HTTPResponse *res)
 {
+    LOG_INFO("handleAdminSettingsApply\n");
     res->setHeader("Content-Type", "text/html");
-    res->setHeader("Access-Control-Allow-Origin", "*");
-    res->setHeader("Access-Control-Allow-Methods", "POST");
+    // res->setHeader("Access-Control-Allow-Origin", "*");
+    // res->setHeader("Access-Control-Allow-Methods", "POST");
+    addCORSHeaders(res);
     res->println("<h1>Meshtastic</h1>\n");
     res->println(
         "<html><head><meta http-equiv=\"refresh\" content=\"1;url=/admin/settings\" /><title>Settings Applied. </title>");
@@ -749,9 +787,12 @@ void handleAdminSettingsApply(HTTPRequest *req, HTTPResponse *res)
 
 void handleFs(HTTPRequest *req, HTTPResponse *res)
 {
+    LOG_INFO("handleFs\n");
     res->setHeader("Content-Type", "text/html");
-    res->setHeader("Access-Control-Allow-Origin", "*");
-    res->setHeader("Access-Control-Allow-Methods", "GET");
+    // res->setHeader("Access-Control-Allow-Origin", "*");
+    // res->setHeader("Access-Control-Allow-Methods", "GET");
+
+    addCORSHeaders(res);
 
     res->println("<h1>Meshtastic</h1>\n");
     res->println("<a href=/admin/fs/delete>Delete Web Content</a><p><form action=/admin/fs/update "
@@ -761,9 +802,12 @@ void handleFs(HTTPRequest *req, HTTPResponse *res)
 
 void handleRestart(HTTPRequest *req, HTTPResponse *res)
 {
+    LOG_INFO("handleRestart\n");
     res->setHeader("Content-Type", "text/html");
-    res->setHeader("Access-Control-Allow-Origin", "*");
-    res->setHeader("Access-Control-Allow-Methods", "GET");
+    // res->setHeader("Access-Control-Allow-Origin", "*");
+    // res->setHeader("Access-Control-Allow-Methods", "GET");
+
+    addCORSHeaders(res);
 
     res->println("<h1>Meshtastic</h1>\n");
     res->println("Restarting");
@@ -774,9 +818,12 @@ void handleRestart(HTTPRequest *req, HTTPResponse *res)
 
 void handleBlinkLED(HTTPRequest *req, HTTPResponse *res)
 {
+    LOG_INFO("handleBlinkLED\n");
     res->setHeader("Content-Type", "application/json");
-    res->setHeader("Access-Control-Allow-Origin", "*");
-    res->setHeader("Access-Control-Allow-Methods", "POST");
+    // res->setHeader("Access-Control-Allow-Origin", "*");
+    // res->setHeader("Access-Control-Allow-Methods", "POST");
+
+    addCORSHeaders(res);
 
     ResourceParameters *params = req->getParams();
     std::string blink_target;
@@ -811,10 +858,12 @@ void handleBlinkLED(HTTPRequest *req, HTTPResponse *res)
 
 void handleScanNetworks(HTTPRequest *req, HTTPResponse *res)
 {
+    LOG_INFO("handleScanNetworks\n");
     res->setHeader("Content-Type", "application/json");
-    res->setHeader("Access-Control-Allow-Origin", "*");
-    res->setHeader("Access-Control-Allow-Methods", "GET");
+    // res->setHeader("Access-Control-Allow-Origin", "*");
+    // res->setHeader("Access-Control-Allow-Methods", "GET");
     // res->setHeader("Content-Type", "text/html");
+    addCORSHeaders(res);
 
     int n = WiFi.scanNetworks();
 
