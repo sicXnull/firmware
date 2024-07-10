@@ -27,6 +27,9 @@
 #if !MESHTASTIC_EXCLUDE_REMOTEHARDWARE
 #include "modules/RemoteHardwareModule.h"
 #endif
+#if !MESHTASTIC_EXCLUDE_POWERSTRESS
+#include "modules/PowerStressModule.h"
+#endif
 #include "modules/RoutingModule.h"
 #include "modules/TextMessageModule.h"
 #if !MESHTASTIC_EXCLUDE_TRACEROUTE
@@ -42,6 +45,7 @@
 #include "modules/Telemetry/DeviceTelemetry.h"
 #endif
 #if HAS_SENSOR && !MESHTASTIC_EXCLUDE_ENVIRONMENTAL_SENSOR
+#include "main.h"
 #include "modules/Telemetry/AirQualityTelemetry.h"
 #include "modules/Telemetry/EnvironmentTelemetry.h"
 #endif
@@ -73,6 +77,11 @@
 #include "modules/SerialModule.h"
 #endif
 #endif
+
+#if !MESHTASTIC_EXCLUDE_DROPZONE
+#include "modules/DropzoneModule.h"
+#endif
+
 /**
  * Create module instances here.  If you are adding a new module, you must 'new' it here (or somewhere else)
  */
@@ -103,11 +112,18 @@ void setupModules()
 #if !MESHTASTIC_EXCLUDE_ATAK
         atakPluginModule = new AtakPluginModule();
 #endif
+
+#if !MESHTASTIC_EXCLUDE_DROPZONE
+        dropzoneModule = new DropzoneModule();
+#endif
         // Note: if the rest of meshtastic doesn't need to explicitly use your module, you do not need to assign the instance
         // to a global variable.
 
 #if !MESHTASTIC_EXCLUDE_REMOTEHARDWARE
         new RemoteHardwareModule();
+#endif
+#if !MESHTASTIC_EXCLUDE_POWERSTRESS
+        new PowerStressModule();
 #endif
         // Example: Put your module here
         // new ReplyModule();
