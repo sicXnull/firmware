@@ -124,6 +124,9 @@ typedef enum _meshtastic_PortNum {
     meshtastic_PortNum_ATAK_PLUGIN = 72,
     /* Provides unencrypted information about a node for consumption by a map via MQTT */
     meshtastic_PortNum_MAP_REPORT_APP = 73,
+    /* PowerStress based monitoring support (for automated power consumption testing) */
+    meshtastic_PortNum_POWERSTRESS_APP = 74,
+    /* Portnum for payloads from the CrankkModule */
     meshtastic_PortNum_CRANKK_APP = 80,
     /* Private applications should use portnums >= 256.
  To simplify initial development and testing you can use "PRIVATE_APP"
