@@ -9,6 +9,7 @@
 #include <stdio.h>
 // #include <Adafruit_USBD_Device.h>
 #include "NodeDB.h"
+#include "PowerMon.h"
 #include "error.h"
 #include "main.h"
 
@@ -74,6 +75,42 @@ void setBluetoothEnable(bool enable)
         if (enable)
             LOG_INFO("DISABLING NRF52 BLUETOOTH WHILE DEBUGGING\n");
         return;
+    }
+
+    // If user disabled bluetooth: init then disable advertising & reduce power
+    // Workaround. Avoid issue where device hangs several days after boot..
+    // Allegedly, no significant increase in power consumption
+    if (!config.bluetooth.enabled) {
+        static bool initialized = false;
+        if (!initialized) {
+            nrf52Bluetooth = new NRF52Bluetooth();
+            nrf52Bluetooth->startDisabled();
+            initBrownout();
+            initialized = true;
+        }
+        return;
+    }
+
+    if (enable) {
+        powerMon->setState(meshtastic_PowerMon_State_BT_On);
+
+        // If not yet set-up
+        if (!nrf52Bluetooth) {
+            LOG_DEBUG("Initializing NRF52 Bluetooth\n");
+            nrf52Bluetooth = new NRF52Bluetooth();
+            nrf52Bluetooth->setup();
+
+            // We delay brownout init until after BLE because BLE starts soft device
+            initBrownout();
+        }
+        // Already setup, apparently
+        else
+            nrf52Bluetooth->resumeAdvertising();
+    }
+    // Disable (if previously set-up)
+    else if (nrf52Bluetooth) {
+        powerMon->clearState(meshtastic_PowerMon_State_BT_On);
+        nrf52Bluetooth->shutdown();
     }
 
     // If user disabled bluetooth: init then disable advertising & reduce power
@@ -234,6 +271,18 @@ void cpuDeepSleep(uint32_t msecToWake)
     // RAK-12039 set pin for Air quality sensor
     digitalWrite(AQ_SET_PIN, LOW);
 #endif
+#ifdef RAK14014
+    // GPIO restores input status, otherwise there will be leakage current
+    nrf_gpio_cfg_default(TFT_BL);
+    nrf_gpio_cfg_default(TFT_DC);
+    nrf_gpio_cfg_default(TFT_CS);
+    nrf_gpio_cfg_default(TFT_SCLK);
+    nrf_gpio_cfg_default(TFT_MOSI);
+    nrf_gpio_cfg_default(TFT_MISO);
+    nrf_gpio_cfg_default(SCREEN_TOUCH_INT);
+    nrf_gpio_cfg_default(WB_I2C1_SCL);
+    nrf_gpio_cfg_default(WB_I2C1_SDA);
+#endif
 #endif
     // Sleepy trackers or sensors can low power "sleep"
     // Don't enter this if we're sleeping portMAX_DELAY, since that's a shutdown event
@@ -274,5 +323,10 @@ void clearBonds()
 
 void enterDfuMode()
 {
+// SDK kit does not have native USB like almost all other NRF52 boards
+#ifdef NRF_USE_SERIAL_DFU
+    enterSerialDfu();
+#else
     enterUf2Dfu();
+#endif
 }

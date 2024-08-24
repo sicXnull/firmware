@@ -23,6 +23,10 @@
 #include "nimble/NimbleBluetooth.h"
 #endif
 
+#if ARCH_PORTDUINO
+#include "PortduinoGlue.h"
+#endif
+
 /*
 receivedPacketQueue - this is a queue of messages we've received from the mesh, which we are keeping to deliver to the phone.
 It is implemented with a FreeRTos queue (wrapped with a little RTQueue class) of pointers to MeshPacket protobufs (which were
@@ -40,20 +44,9 @@ arbitrating to select a node number and keeping the current nodedb.
 The algorithm is as follows:
 * when a node starts up, it broadcasts their user and the normal flow is for all other nodes to reply with their User as well (so
 the new node can build its node db)
-* If a node ever receives a User (not just the first broadcast) message where the sender node number equals our node number, that
-indicates a collision has occurred and the following steps should happen:
-
-If the receiving node (that was already in the mesh)'s macaddr is LOWER than the new User who just tried to sign in: it gets to
-keep its nodenum.  We send a broadcast message of OUR User (we use a broadcast so that the other node can receive our message,
-considering we have the same id - it also serves to let observers correct their nodedb) - this case is rare so it should be okay.
-
-If any node receives a User where the macaddr is GTE than their local macaddr, they have been vetoed and should pick a new random
-nodenum (filtering against whatever it knows about the nodedb) and rebroadcast their User.
-
-FIXME in the initial proof of concept we just skip the entire want/deny flow and just hand pick node numbers at first.
 */
 
-MeshService service;
+MeshService *service;
 
 static MemoryDynamic<meshtastic_MqttClientProxyMessage> staticMqttClientProxyMessagePool;
 
@@ -73,8 +66,6 @@ MeshService::MeshService()
 
 void MeshService::init()
 {
-    // moved much earlier in boot (called from setup())
-    // nodeDB.init();
 #if HAS_GPS
     if (gps)
         gpsObserver.observe(&gps->newStatus);
@@ -94,7 +85,11 @@ int MeshService::handleFromRadio(const meshtastic_MeshPacket *mp)
     } else if (mp->which_payload_variant == meshtastic_MeshPacket_decoded_tag && !nodeDB->getMeshNode(mp->from)->has_user &&
                nodeInfoModule) {
         LOG_INFO("Heard a node on channel %d we don't know, sending NodeInfo and asking for a response.\n", mp->channel);
-        nodeInfoModule->sendOurNodeInfo(mp->from, true, mp->channel);
+        if (airTime->isTxAllowedChannelUtil(true)) {
+            nodeInfoModule->sendOurNodeInfo(mp->from, true, mp->channel);
+        } else {
+            LOG_DEBUG("Skip sending NodeInfo due to > 25 percent channel util.\n");
+        }
     }
 
     printPacket("Forwarding to phone", mp);
@@ -288,6 +283,17 @@ bool MeshService::trySendPosition(NodeNum dest, bool wantReplies)
 void MeshService::sendToPhone(meshtastic_MeshPacket *p)
 {
     perhapsDecode(p);
+
+#ifdef ARCH_ESP32
+#if !MESHTASTIC_EXCLUDE_STOREFORWARD
+    if (moduleConfig.store_forward.enabled && storeForwardModule->isServer() &&
+        p->decoded.portnum == meshtastic_PortNum_TEXT_MESSAGE_APP) {
+        releaseToPool(p); // Copy is already stored in StoreForward history
+        fromNum++;        // Notify observers for packet from radio
+        return;
+    }
+#endif
+#endif
 
     if (toPhoneQueue.numFree() == 0) {
         if (p->decoded.portnum == meshtastic_PortNum_TEXT_MESSAGE_APP ||
