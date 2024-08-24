@@ -7,7 +7,7 @@
 #include "configuration.h"
 #include "mesh/NodeDB.h"
 #include "mesh/http/ContentHandler.h"
-#include "mqtt/JSON.h"
+#include "serialization/JSON.h"
 #include "target_specific.h"
 #include <Crypto.h>
 #include <memory>
