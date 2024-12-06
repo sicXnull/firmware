@@ -2,11 +2,13 @@
 
 #include "Observer.h"
 #include <Arduino.h>
+#include <algorithm>
 #include <assert.h>
 #include <vector>
 
 #include "MeshTypes.h"
 #include "NodeStatus.h"
+#include "configuration.h"
 #include "mesh-pb-constants.h"
 #include "mesh/generated/meshtastic/mesh.pb.h" // For CriticalErrorCode
 
@@ -29,7 +31,6 @@ extern meshtastic_ChannelFile channelFile;
 extern meshtastic_MyNodeInfo &myNodeInfo;
 extern meshtastic_LocalConfig config;
 extern meshtastic_LocalModuleConfig moduleConfig;
-extern meshtastic_OEMStore oemStore;
 extern meshtastic_User &owner;
 extern meshtastic_Position localPosition;
 
@@ -98,7 +99,7 @@ class NodeDB
 
     /** Update user info and channel for this node based on received user data
      */
-    bool updateUser(uint32_t nodeId, const meshtastic_User &p, uint8_t channelIndex = 0);
+    bool updateUser(uint32_t nodeId, meshtastic_User &p, uint8_t channelIndex = 0);
 
     /// @return our node number
     NodeNum getNodeNum() { return myNodeInfo.my_node_num; }
@@ -127,7 +128,7 @@ class NodeDB
 
     void initConfigIntervals(), initModuleConfigIntervals(), resetNodes(), removeNodeByNum(NodeNum nodeNum);
 
-    bool factoryReset();
+    bool factoryReset(bool eraseBleBonds = false);
 
     LoadFileResult loadProto(const char *filename, size_t protoSize, size_t objSize, const pb_msgdesc_t *fields,
                              void *dest_struct);
@@ -147,17 +148,20 @@ class NodeDB
     meshtastic_NodeInfoLite *getMeshNode(NodeNum n);
     size_t getNumMeshNodes() { return numMeshNodes; }
 
+    // returns true if the maximum number of nodes is reached or we are running low on memory
+    bool isFull();
+
     void clearLocalPosition();
 
     void setLocalPosition(meshtastic_Position position, bool timeOnly = false)
     {
         if (timeOnly) {
-            LOG_DEBUG("Setting local position time only: time=%u timestamp=%u\n", position.time, position.timestamp);
+            LOG_DEBUG("Set local position time only: time=%u timestamp=%u", position.time, position.timestamp);
             localPosition.time = position.time;
             localPosition.timestamp = position.timestamp > 0 ? position.timestamp : position.time;
             return;
         }
-        LOG_DEBUG("Setting local position: lat=%i lon=%i time=%u timestamp=%u\n", position.latitude_i, position.longitude_i,
+        LOG_DEBUG("Set local position: lat=%i lon=%i time=%u timestamp=%u", position.latitude_i, position.longitude_i,
                   position.time, position.timestamp);
         localPosition = position;
     }
@@ -182,7 +186,8 @@ class NodeDB
     void cleanupMeshDB();
 
     /// Reinit device state from scratch (not loading from disk)
-    void installDefaultDeviceState(), installDefaultChannels(), installDefaultConfig(), installDefaultModuleConfig();
+    void installDefaultDeviceState(), installDefaultChannels(), installDefaultConfig(bool preserveKey),
+        installDefaultModuleConfig();
 
     /// write to flash
     /// @return true if the save was successful

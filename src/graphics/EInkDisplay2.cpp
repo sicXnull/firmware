@@ -79,13 +79,13 @@ bool EInkDisplay::forceDisplay(uint32_t msecLimit)
     }
 
     // Trigger the refresh in GxEPD2
-    LOG_DEBUG("Updating E-Paper... ");
+    LOG_DEBUG("Update E-Paper");
     adafruitDisplay->nextPage();
 
     // End the update process
     endUpdate();
 
-    LOG_DEBUG("done\n");
+    LOG_DEBUG("done");
     return true;
 }
 
@@ -123,7 +123,7 @@ void EInkDisplay::setDetected(uint8_t detected)
 // Connect to the display - variant specific
 bool EInkDisplay::connect()
 {
-    LOG_INFO("Doing EInk init\n");
+    LOG_INFO("Do EInk init");
 
 #ifdef PIN_EINK_EN
     // backlight power, HIGH is backlight on, LOW is off
@@ -157,7 +157,7 @@ bool EInkDisplay::connect()
     }
 
 #elif defined(HELTEC_WIRELESS_PAPER_V1_0) || defined(HELTEC_WIRELESS_PAPER) || defined(HELTEC_VISION_MASTER_E213) ||             \
-    defined(HELTEC_VISION_MASTER_E290)
+    defined(HELTEC_VISION_MASTER_E290) || defined(TLORA_T3S3_EPAPER)
     {
         // Start HSPI
         hspi = new SPIClass(HSPI);

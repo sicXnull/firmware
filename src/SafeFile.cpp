@@ -11,6 +11,9 @@ static File openFile(const char *filename, bool fullAtomic)
     String filenameTmp = filename;
     filenameTmp += ".tmp";
 
+    // clear any previous LFS errors
+    lfs_assert_failed = false;
+
     return FSCom.open(filenameTmp.c_str(), FILE_O_WRITE);
 }
 
@@ -56,14 +59,14 @@ bool SafeFile::close()
 
     // brief window of risk here ;-)
     if (fullAtomic && FSCom.exists(filename.c_str()) && !FSCom.remove(filename.c_str())) {
-        LOG_ERROR("Can't remove old pref file\n");
+        LOG_ERROR("Can't remove old pref file");
         return false;
     }
 
     String filenameTmp = filename;
     filenameTmp += ".tmp";
     if (!renameFile(filenameTmp.c_str(), filename.c_str())) {
-        LOG_ERROR("Error: can't rename new pref file\n");
+        LOG_ERROR("Error: can't rename new pref file");
         return false;
     }
 
@@ -73,11 +76,14 @@ bool SafeFile::close()
 /// Read our (closed) tempfile back in and compare the hash
 bool SafeFile::testReadback()
 {
+    bool lfs_failed = lfs_assert_failed;
+    lfs_assert_failed = false;
+
     String filenameTmp = filename;
     filenameTmp += ".tmp";
     auto f2 = FSCom.open(filenameTmp.c_str(), FILE_O_READ);
     if (!f2) {
-        LOG_ERROR("Can't open tmp file for readback\n");
+        LOG_ERROR("Can't open tmp file for readback");
         return false;
     }
 
@@ -89,11 +95,11 @@ bool SafeFile::testReadback()
     f2.close();
 
     if (test_hash != hash) {
-        LOG_ERROR("Readback failed hash mismatch\n");
+        LOG_ERROR("Readback failed hash mismatch");
         return false;
     }
 
-    return true;
+    return !lfs_failed;
 }
 
 #endif
