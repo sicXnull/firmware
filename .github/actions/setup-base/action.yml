@@ -11,6 +11,11 @@ runs:
         ref: ${{github.event.pull_request.head.ref}}
         repository: ${{github.event.pull_request.head.repo.full_name}}
 
+    - name: Uncomment build epoch
+      shell: bash
+      run: |
+        sed -i 's/#-DBUILD_EPOCH=$UNIX_TIME/-DBUILD_EPOCH=$UNIX_TIME/' platformio.ini
+
     - name: Install dependencies
       shell: bash
       run: |
@@ -35,6 +40,7 @@ runs:
         python -m pip install --upgrade pip
         pip install -U --no-build-isolation --no-cache-dir "setuptools<72"
         pip install -U platformio adafruit-nrfutil --no-build-isolation
+        pip install -U poetry --no-build-isolation
         pip install -U meshtastic --pre --no-build-isolation
 
     - name: Upgrade platformio

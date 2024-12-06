@@ -48,6 +48,15 @@ void OSFS::writeNBytes(uint16_t address, unsigned int num, const byte *input)
 }
 #endif
 
+bool lfs_assert_failed =
+    false; // Note: we use this global on all platforms, though it can only be set true on nrf52 (in our modified lfs_util.h)
+
+extern "C" void lfs_assert(const char *reason)
+{
+    LOG_ERROR("LFS assert: %s", reason);
+    lfs_assert_failed = true;
+}
+
 /**
  * @brief Copies a file from one location to another.
  *
@@ -66,19 +75,19 @@ bool copyFile(const char *from, const char *to)
     r = OSFS::getFile(from, cbuffer);
 
     if (r == notfound) {
-        LOG_ERROR("Failed to open source file %s\n", from);
+        LOG_ERROR("Failed to open source file %s", from);
         return false;
     } else if (r == noerr) {
         r = OSFS::newFile(to, cbuffer, true);
         if (r == noerr) {
             return true;
         } else {
-            LOG_ERROR("OSFS Error %d\n", r);
+            LOG_ERROR("OSFS Error %d", r);
             return false;
         }
 
     } else {
-        LOG_ERROR("OSFS Error %d\n", r);
+        LOG_ERROR("OSFS Error %d", r);
         return false;
     }
     return true;
@@ -88,13 +97,13 @@ bool copyFile(const char *from, const char *to)
 
     File f1 = FSCom.open(from, FILE_O_READ);
     if (!f1) {
-        LOG_ERROR("Failed to open source file %s\n", from);
+        LOG_ERROR("Failed to open source file %s", from);
         return false;
     }
 
     File f2 = FSCom.open(to, FILE_O_WRITE);
     if (!f2) {
-        LOG_ERROR("Failed to open destination file %s\n", to);
+        LOG_ERROR("Failed to open destination file %s", to);
         return false;
     }
 
@@ -199,7 +208,7 @@ std::vector<meshtastic_FileInfo> getFiles(const char *dirname, uint8_t levels)
  * @param levels The number of levels of subdirectories to list.
  * @param del Whether or not to delete the contents of the directory after listing.
  */
-void listDir(const char *dirname, uint8_t levels, bool del = false)
+void listDir(const char *dirname, uint8_t levels, bool del)
 {
 #ifdef FSCom
 #if (defined(ARCH_ESP32) || defined(ARCH_RP2040) || defined(ARCH_PORTDUINO))
@@ -214,13 +223,15 @@ void listDir(const char *dirname, uint8_t levels, bool del = false)
     }
 
     File file = root.openNextFile();
-    while (file) {
+    while (
+        file &&
+        file.name()[0]) { // This file.name() check is a workaround for a bug in the Adafruit LittleFS nrf52 glue (see issue 4395)
         if (file.isDirectory() && !String(file.name()).endsWith(".")) {
             if (levels) {
 #ifdef ARCH_ESP32
                 listDir(file.path(), levels - 1, del);
                 if (del) {
-                    LOG_DEBUG("Removing %s\n", file.path());
+                    LOG_DEBUG("Remove %s", file.path());
                     strncpy(buffer, file.path(), sizeof(buffer));
                     file.close();
                     FSCom.rmdir(buffer);
@@ -230,7 +241,7 @@ void listDir(const char *dirname, uint8_t levels, bool del = false)
 #elif (defined(ARCH_RP2040) || defined(ARCH_PORTDUINO))
                 listDir(file.name(), levels - 1, del);
                 if (del) {
-                    LOG_DEBUG("Removing %s\n", file.name());
+                    LOG_DEBUG("Remove %s", file.name());
                     strncpy(buffer, file.name(), sizeof(buffer));
                     file.close();
                     FSCom.rmdir(buffer);
@@ -238,6 +249,7 @@ void listDir(const char *dirname, uint8_t levels, bool del = false)
                     file.close();
                 }
 #else
+                LOG_DEBUG(" %s (directory)", file.name());
                 listDir(file.name(), levels - 1, del);
                 file.close();
 #endif
@@ -245,26 +257,26 @@ void listDir(const char *dirname, uint8_t levels, bool del = false)
         } else {
 #ifdef ARCH_ESP32
             if (del) {
-                LOG_DEBUG("Deleting %s\n", file.path());
+                LOG_DEBUG("Delete %s", file.path());
                 strncpy(buffer, file.path(), sizeof(buffer));
                 file.close();
                 FSCom.remove(buffer);
             } else {
-                LOG_DEBUG(" %s (%i Bytes)\n", file.path(), file.size());
+                LOG_DEBUG(" %s (%i Bytes)", file.path(), file.size());
                 file.close();
             }
 #elif (defined(ARCH_RP2040) || defined(ARCH_PORTDUINO))
             if (del) {
-                LOG_DEBUG("Deleting %s\n", file.name());
+                LOG_DEBUG("Delete %s", file.name());
                 strncpy(buffer, file.name(), sizeof(buffer));
                 file.close();
                 FSCom.remove(buffer);
             } else {
-                LOG_DEBUG(" %s (%i Bytes)\n", file.name(), file.size());
+                LOG_DEBUG(" %s (%i Bytes)", file.name(), file.size());
                 file.close();
             }
 #else
-            LOG_DEBUG(" %s (%i Bytes)\n", file.name(), file.size());
+            LOG_DEBUG("   %s (%i Bytes)", file.name(), file.size());
             file.close();
 #endif
         }
@@ -272,7 +284,7 @@ void listDir(const char *dirname, uint8_t levels, bool del = false)
     }
 #ifdef ARCH_ESP32
     if (del) {
-        LOG_DEBUG("Removing %s\n", root.path());
+        LOG_DEBUG("Remove %s", root.path());
         strncpy(buffer, root.path(), sizeof(buffer));
         root.close();
         FSCom.rmdir(buffer);
@@ -281,7 +293,7 @@ void listDir(const char *dirname, uint8_t levels, bool del = false)
     }
 #elif (defined(ARCH_RP2040) || defined(ARCH_PORTDUINO))
     if (del) {
-        LOG_DEBUG("Removing %s\n", root.name());
+        LOG_DEBUG("Remove %s", root.name());
         strncpy(buffer, root.name(), sizeof(buffer));
         root.close();
         FSCom.rmdir(buffer);
@@ -313,102 +325,17 @@ void rmDir(const char *dirname)
 #endif
 }
 
-bool fsCheck()
-{
-#if defined(ARCH_NRF52)
-    size_t write_size = 0;
-    size_t read_size = 0;
-    char buf[32] = {0};
-
-    Adafruit_LittleFS_Namespace::File file(FSCom);
-    const char *text = "meshtastic fs test";
-    size_t text_length = strlen(text);
-    const char *filename = "/meshtastic.txt";
-
-    LOG_DEBUG("Try create file .\n");
-    if (file.open(filename, FILE_O_WRITE)) {
-        write_size = file.write(text);
-    } else {
-        LOG_DEBUG("Open file failed .\n");
-        goto FORMAT_FS;
-    }
-
-    if (write_size != text_length) {
-        LOG_DEBUG("Text bytes do not match .\n");
-        file.close();
-        goto FORMAT_FS;
-    }
-
-    file.close();
-
-    if (!file.open(filename, FILE_O_READ)) {
-        LOG_DEBUG("Open file failed .\n");
-        goto FORMAT_FS;
-    }
-
-    read_size = file.readBytes(buf, text_length);
-    if (read_size != text_length) {
-        LOG_DEBUG("Text bytes do not match .\n");
-        file.close();
-        goto FORMAT_FS;
-    }
-
-    if (memcmp(buf, text, text_length) != 0) {
-        LOG_DEBUG("The written bytes do not match the read bytes .\n");
-        file.close();
-        goto FORMAT_FS;
-    }
-    return true;
-FORMAT_FS:
-    LOG_DEBUG("Format FS ....\n");
-    FSCom.format();
-    FSCom.begin();
-    return false;
-#else
-    return true;
-#endif
-}
-
 void fsInit()
 {
 #ifdef FSCom
     if (!FSBegin()) {
-        LOG_ERROR("Filesystem mount Failed.\n");
+        LOG_ERROR("Filesystem mount failed");
         // assert(0); This auto-formats the partition, so no need to fail here.
     }
 #if defined(ARCH_ESP32)
-    LOG_DEBUG("Filesystem files (%d/%d Bytes):\n", FSCom.usedBytes(), FSCom.totalBytes());
-#elif defined(ARCH_NRF52)
-    /*
-     * nRF52840 has a certain chance of automatic formatting failure.
-     * Try to create a file after initializing the file system. If the creation fails,
-     * it means that the file system is not working properly. Please format it manually again.
-     * To check the normality of the file system, you need to disable the LFS_NO_ASSERT assertion.
-     * Otherwise, the assertion will be entered at the moment of reading or opening, and the FS will not be formatted.
-     * */
-    bool ret = false;
-    uint8_t retry = 3;
-
-    while (retry--) {
-        ret = fsCheck();
-        if (ret) {
-            LOG_DEBUG("File system check is OK.\n");
-            break;
-        }
-        delay(10);
-    }
-
-    // It may not be possible to reach this step.
-    // Add a loop here to prevent unpredictable situations from happening.
-    // Can add a screen to display error status later.
-    if (!ret) {
-        while (1) {
-            LOG_ERROR("The file system is damaged and cannot proceed to the next step.\n");
-            delay(1000);
-        }
-    }
+    LOG_DEBUG("Filesystem files (%d/%d Bytes):", FSCom.usedBytes(), FSCom.totalBytes());
 #else
-    LOG_DEBUG("Filesystem files:\n");
+    LOG_DEBUG("Filesystem files:");
 #endif
     listDir("/", 10);
 #endif
@@ -423,28 +350,28 @@ void setupSDCard()
     SDHandler.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
 
     if (!SD.begin(SDCARD_CS, SDHandler)) {
-        LOG_DEBUG("No SD_MMC card detected\n");
+        LOG_DEBUG("No SD_MMC card detected");
         return;
     }
     uint8_t cardType = SD.cardType();
     if (cardType == CARD_NONE) {
-        LOG_DEBUG("No SD_MMC card attached\n");
+        LOG_DEBUG("No SD_MMC card attached");
         return;
     }
     LOG_DEBUG("SD_MMC Card Type: ");
     if (cardType == CARD_MMC) {
-        LOG_DEBUG("MMC\n");
+        LOG_DEBUG("MMC");
     } else if (cardType == CARD_SD) {
-        LOG_DEBUG("SDSC\n");
+        LOG_DEBUG("SDSC");
     } else if (cardType == CARD_SDHC) {
-        LOG_DEBUG("SDHC\n");
+        LOG_DEBUG("SDHC");
     } else {
-        LOG_DEBUG("UNKNOWN\n");
+        LOG_DEBUG("UNKNOWN");
     }
 
     uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-    LOG_DEBUG("SD Card Size: %lluMB\n", cardSize);
-    LOG_DEBUG("Total space: %llu MB\n", SD.totalBytes() / (1024 * 1024));
-    LOG_DEBUG("Used space: %llu MB\n", SD.usedBytes() / (1024 * 1024));
+    LOG_DEBUG("SD Card Size: %lu MB", (uint32_t)cardSize);
+    LOG_DEBUG("Total space: %lu MB", (uint32_t)(SD.totalBytes() / (1024 * 1024)));
+    LOG_DEBUG("Used space: %lu MB", (uint32_t)(SD.usedBytes() / (1024 * 1024)));
 #endif
 }
