@@ -11,7 +11,7 @@ on:
       - version.properties
 
   # Note: This is different from "pull_request". Need to specify ref when doing checkouts.
-  pull_request:
+  pull_request_target:
     branches: [master, develop]
     paths-ignore:
       - "**.md"
