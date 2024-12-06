@@ -11,14 +11,13 @@ on:
       - version.properties
 
   # Note: This is different from "pull_request". Need to specify ref when doing checkouts.
-  pull_request_target:
+  pull_request:
     branches: [master, develop]
     paths-ignore:
       - "**.md"
       #- "**.yml"
 
   workflow_dispatch:
-# test
 jobs:
   setup:
     strategy:
