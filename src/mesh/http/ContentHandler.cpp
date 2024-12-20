@@ -2,6 +2,7 @@
 #include "NodeDB.h"
 #include "PowerFSM.h"
 #include "RadioLibInterface.h"
+#include "Router.h"
 #include "airtime.h"
 #include "main.h"
 #include "mesh/http/ContentHelper.h"
@@ -22,8 +23,8 @@
 #endif
 
 #include "concurrency/Periodic.h"
-#include "mesh/blockchain/BlockchainHandler.h"
 #include "mesh/http/ContentHandler.h"
+#include <BlockchainHandler.h>
 
 // The HTTPS Server comes in a separate namespace. For easier use, include it here.
 using namespace httpsserver;
@@ -51,9 +52,12 @@ concurrency::Periodic *periodicBlockchainCall;
 
 static int32_t callBlockchain()
 {
-    std::unique_ptr<BlockchainHandler> blockchainHandler(
-        new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key));
-    return blockchainHandler->performNodeSync(&webAPI);
+    char nodeIdHex[9];
+    sprintf(nodeIdHex, "%08x", nodeDB->getNodeNum());
+    String nodeId = String(nodeIdHex);
+    std::unique_ptr<BlockchainHandler> blockchainHandler(new BlockchainHandler(
+        moduleConfig.wallet.public_key, moduleConfig.wallet.private_key, moduleConfig.wallet.enabled, generatePacketId));
+    return blockchainHandler->performNodeSync(nodeId.c_str());
 }
 
 void registerHandlers(HTTPServer *insecureServer, HTTPSServer *secureServer)
