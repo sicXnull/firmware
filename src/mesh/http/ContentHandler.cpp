@@ -50,14 +50,23 @@ char contentTypes[][2][32] = {{".txt", "text/plain"},     {".html", "text/html"}
 HttpAPI webAPI;
 concurrency::Periodic *periodicBlockchainCall;
 
-static int32_t callBlockchain()
+String getNodeId()
 {
     char nodeIdHex[9];
     sprintf(nodeIdHex, "%08x", nodeDB->getNodeNum());
-    String nodeId = String(nodeIdHex);
+    return String(nodeIdHex);
+}
+
+static int32_t callBlockchain()
+{
+    String nodeId = getNodeId();
     std::unique_ptr<BlockchainHandler> blockchainHandler(new BlockchainHandler(
         moduleConfig.wallet.public_key, moduleConfig.wallet.private_key, moduleConfig.wallet.enabled, generatePacketId));
-    return blockchainHandler->performNodeSync(nodeId.c_str());
+    blockchainHandler->setSecretCallback(std::bind(&HttpAPI::sendSecret, &webAPI, std::placeholders::_1));
+    uint32_t nodeSyncDelay = blockchainHandler->performNodeSync(nodeId.c_str());
+    auto newHeap = memGet.getFreeHeap();
+    LOG_TRACE("Free heap: %d\n", newHeap);
+    return nodeSyncDelay;
 }
 
 void registerHandlers(HTTPServer *insecureServer, HTTPSServer *secureServer)
