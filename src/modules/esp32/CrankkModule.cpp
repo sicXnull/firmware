@@ -26,8 +26,8 @@ ProcessMessage CrankkModule::handleReceived(const meshtastic_MeshPacket &mp)
     if (message == "CR24" && nodeId != "0") {
         LOG_DEBUG("\nCrankk message received: %s\n", message);
 
-        std::unique_ptr<BlockchainHandler> blockchainHandler(new BlockchainHandler(
-            moduleConfig.wallet.public_key, moduleConfig.wallet.private_key, moduleConfig.wallet.enabled, generatePacketId));
+        std::unique_ptr<BlockchainHandler> blockchainHandler(
+            new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key, moduleConfig.wallet.enabled));
 
         // Get the director's public key in order to perform the encryption
         String get_key_command = "(free.mesh03.get-sender-details \"" + nodeId + "\")";

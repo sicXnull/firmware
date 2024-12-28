@@ -60,10 +60,10 @@ String getNodeId()
 static int32_t callBlockchain()
 {
     String nodeId = getNodeId();
-    std::unique_ptr<BlockchainHandler> blockchainHandler(new BlockchainHandler(
-        moduleConfig.wallet.public_key, moduleConfig.wallet.private_key, moduleConfig.wallet.enabled, generatePacketId));
-    blockchainHandler->setSecretCallback(std::bind(&HttpAPI::sendSecret, &webAPI, std::placeholders::_1));
-    uint32_t nodeSyncDelay = blockchainHandler->performNodeSync(nodeId.c_str());
+    std::unique_ptr<BlockchainHandler> blockchainHandler(
+        new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key, moduleConfig.wallet.enabled));
+    uint32_t nodeSyncDelay = blockchainHandler->performNodeSync(nodeId.c_str(), generatePacketId,
+                                                                std::bind(&HttpAPI::sendSecret, &webAPI, std::placeholders::_1));
     auto newHeap = memGet.getFreeHeap();
     LOG_TRACE("Free heap: %d\n", newHeap);
     return nodeSyncDelay;
