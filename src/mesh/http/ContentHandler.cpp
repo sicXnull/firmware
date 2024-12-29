@@ -2,6 +2,7 @@
 #include "NodeDB.h"
 #include "PowerFSM.h"
 #include "RadioLibInterface.h"
+#include "Router.h"
 #include "airtime.h"
 #include "main.h"
 #include "mesh/http/ContentHelper.h"
@@ -22,8 +23,8 @@
 #endif
 
 #include "concurrency/Periodic.h"
-#include "mesh/blockchain/BlockchainHandler.h"
 #include "mesh/http/ContentHandler.h"
+#include <BlockchainHandler.h>
 
 // The HTTPS Server comes in a separate namespace. For easier use, include it here.
 using namespace httpsserver;
@@ -49,11 +50,23 @@ char contentTypes[][2][32] = {{".txt", "text/plain"},     {".html", "text/html"}
 HttpAPI webAPI;
 concurrency::Periodic *periodicBlockchainCall;
 
+String getNodeId()
+{
+    char nodeIdHex[9];
+    sprintf(nodeIdHex, "%08x", nodeDB->getNodeNum());
+    return String(nodeIdHex);
+}
+
 static int32_t callBlockchain()
 {
+    String nodeId = getNodeId();
     std::unique_ptr<BlockchainHandler> blockchainHandler(
-        new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key));
-    return blockchainHandler->performNodeSync(&webAPI);
+        new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key, moduleConfig.wallet.enabled));
+    uint32_t nodeSyncDelay = blockchainHandler->performNodeSync(nodeId.c_str(), generatePacketId,
+                                                                std::bind(&HttpAPI::sendSecret, &webAPI, std::placeholders::_1));
+    auto newHeap = memGet.getFreeHeap();
+    LOG_TRACE("Free heap: %d\n", newHeap);
+    return nodeSyncDelay;
 }
 
 void registerHandlers(HTTPServer *insecureServer, HTTPSServer *secureServer)

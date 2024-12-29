@@ -4,7 +4,7 @@
 #include "MeshService.h"
 #include "NodeDB.h"
 #include "PowerFSM.h"
-#include "mesh/blockchain/BlockchainHandler.h"
+#include <BlockchainHandler.h>
 
 CrankkModule *crankkModule;
 
@@ -27,7 +27,7 @@ ProcessMessage CrankkModule::handleReceived(const meshtastic_MeshPacket &mp)
         LOG_DEBUG("\nCrankk message received: %s\n", message);
 
         std::unique_ptr<BlockchainHandler> blockchainHandler(
-            new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key));
+            new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key, moduleConfig.wallet.enabled));
 
         // Get the director's public key in order to perform the encryption
         String get_key_command = "(free.mesh03.get-sender-details \"" + nodeId + "\")";

@@ -10,7 +10,7 @@ with open('version.properties', 'w', encoding='utf-8') as f:
     for line in lines:
         if line.lstrip().startswith("build = "):
             words = line.split(" = ")
-            ver = f'build = {int(words[1]) + 1}'
+            ver = f'build = {int(float(words[1])) + 1}'
             f.write(f'{ver}\n')
         else:
             f.write(line)
