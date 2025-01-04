@@ -393,8 +393,13 @@ size_t PhoneAPI::getFromRadio(uint8_t *buf)
             fromRadioScratch.moduleConfig.payload_variant.paxcounter = moduleConfig.paxcounter;
             break;
         case meshtastic_ModuleConfig_wallet_tag:
+            LOG_DEBUG("Send module config: wallet");
             fromRadioScratch.moduleConfig.which_payload_variant = meshtastic_ModuleConfig_wallet_tag;
-            fromRadioScratch.moduleConfig.payload_variant.wallet = moduleConfig.wallet;
+            fromRadioScratch.moduleConfig.payload_variant.wallet.enabled = moduleConfig.wallet.enabled;
+            strncpy(fromRadioScratch.moduleConfig.payload_variant.wallet.public_key, moduleConfig.wallet.public_key,
+                    sizeof(fromRadioScratch.moduleConfig.payload_variant.wallet.public_key));
+            memset(fromRadioScratch.moduleConfig.payload_variant.wallet.private_key, 0,
+                   sizeof(fromRadioScratch.moduleConfig.payload_variant.wallet.private_key));
             break;
         default:
             LOG_ERROR("Unknown module config type %d", config_state);
