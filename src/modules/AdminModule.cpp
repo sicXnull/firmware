@@ -876,7 +876,11 @@ void AdminModule::handleGetModuleConfig(const meshtastic_MeshPacket &req, const 
         case meshtastic_AdminMessage_ModuleConfigType_WALLET_CONFIG:
             LOG_INFO("Getting module config: Wallet\n");
             res.get_module_config_response.which_payload_variant = meshtastic_ModuleConfig_wallet_tag;
-            res.get_module_config_response.payload_variant.wallet = moduleConfig.wallet;
+            res.get_module_config_response.payload_variant.wallet.enabled = moduleConfig.wallet.enabled;
+            strncpy(res.get_module_config_response.payload_variant.wallet.public_key, moduleConfig.wallet.public_key,
+                    sizeof(res.get_module_config_response.payload_variant.wallet.public_key));
+            memset(res.get_module_config_response.payload_variant.wallet.private_key, 0,
+                   sizeof(res.get_module_config_response.payload_variant.wallet.private_key));
             break;
         }
 
