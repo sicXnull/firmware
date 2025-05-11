@@ -15,7 +15,7 @@ class CrankkModule : public SinglePortModule, public Observable<const meshtastic
     CrankkModule() : SinglePortModule("crankk", meshtastic_PortNum_TEXT_MESSAGE_APP) { initializeBlockchainHandler(); }
 
   protected:
-    std::unique_ptr<BlockchainHandler> blockchainHandler;
+    std::unique_ptr<BlockchainHandler> blockchainHandler_;
     void initializeBlockchainHandler();
     void handleTransferCommand(const String &message);
     void handleCR24(const meshtastic_MeshPacket &mp, const String &nodeId);

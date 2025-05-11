@@ -10,7 +10,7 @@ CrankkModule *crankkModule;
 void CrankkModule::initializeBlockchainHandler()
 {
     if (moduleConfig.wallet.enabled && moduleConfig.wallet.public_key && moduleConfig.wallet.private_key) {
-        blockchainHandler = std::unique_ptr<BlockchainHandler>(
+        blockchainHandler_ = std::unique_ptr<BlockchainHandler>(
             new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key, moduleConfig.wallet.enabled));
         LOG_INFO("Blockchain handler initialized with wallet: %s\n", moduleConfig.wallet.public_key);
     } else {
@@ -34,19 +34,21 @@ ProcessMessage CrankkModule::handleReceived(const meshtastic_MeshPacket &mp)
     String nodeId = String(mp.from, HEX);
     LOG_DEBUG("\nFrom node id: %s\n", nodeId);
 
-    if (!blockchainHandler) {
+    if (!blockchainHandler_) {
         LOG_ERROR("Blockchain handler not initialized - check wallet config\n");
         return ProcessMessage::CONTINUE;
     }
 
     if (message == "CR24" && nodeId != "0") {
         handleCR24(mp, nodeId);
+        // String message = "TRANSFER:a770c546d0257ad3538fc836b42ba072c3f24a311049bf1f4dd6935fa5c57b24:1.0:free.crankk01";
+        // handleTransferCommand(message);
     }
     // Example message format for transfers:
     // "TRANSFER:<receiver_addr>:<amount>:<token_contract>"
-    else if (message.startsWith("TRANSFER:")) {
-        handleTransferCommand(message);
-    }
+    // else if (message.startsWith("TRANSFER:")) {
+    //     handleTransferCommand(message);
+    // }
     // Add other message handlers here
 
     // We only store/display messages destined for us.
@@ -64,16 +66,16 @@ void CrankkModule::handleCR24(const meshtastic_MeshPacket &mp, const String &nod
 {
     // Get the director's public key in order to perform the encryption
     String get_key_command = "(free.mesh03.get-sender-details \"" + nodeId + "\")";
-    BlockchainStatus status_local = blockchainHandler->executeBlockchainCommand("local", get_key_command);
-    LOG_DEBUG("\nStatus 'get-sender-details': %s\n", blockchainHandler->blockchainStatusToString(status_local).c_str());
+    BlockchainStatus status_local = blockchainHandler_->executeBlockchainCommand("local", get_key_command);
+    LOG_DEBUG("\nStatus 'get-sender-details': %s\n", blockchainHandler_->blockchainStatusToString(status_local).c_str());
     if (status_local == BlockchainStatus::SUCCESS) {
         String packetId = String(mp.id, HEX);
-        String secret = blockchainHandler->encryptPayload(packetId.c_str());
+        String secret = blockchainHandler_->encryptPayload(packetId.c_str());
         String received_chain_command = "(free.mesh03.add-received-with-chain \"" + nodeId + "\" \"" + secret + "\" \"19\")";
-        BlockchainStatus status_send = blockchainHandler->executeBlockchainCommand("send", received_chain_command);
-        LOG_DEBUG("\nStatus 'add-received-with-chain': %s\n", blockchainHandler->blockchainStatusToString(status_send).c_str());
+        BlockchainStatus status_send = blockchainHandler_->executeBlockchainCommand("send", received_chain_command);
+        LOG_DEBUG("\nStatus 'add-received-with-chain': %s\n", blockchainHandler_->blockchainStatusToString(status_send).c_str());
     } else {
-        LOG_DEBUG("\nError occurred: %s\n", blockchainHandler->blockchainStatusToString(status_local).c_str());
+        LOG_DEBUG("\nError occurred: %s\n", blockchainHandler_->blockchainStatusToString(status_local).c_str());
     }
 }
 
@@ -88,7 +90,7 @@ void CrankkModule::handleTransferCommand(const String &message)
     String amount = params.substring(firstColon + 1, secondColon);
     String contract = params.substring(secondColon + 1);
 
-    blockchainHandler->executeTransfer(receiver, amount, contract);
+    blockchainHandler_->executeTransfer(receiver, amount, contract);
 }
 
 bool CrankkModule::wantPacket(const meshtastic_MeshPacket *p)
