@@ -1,7 +1,7 @@
 #include "configuration.h"
 #if defined(ARCH_ESP32) && !MESHTASTIC_EXCLUDE_CRANKK
 #include "CrankkModule.h"
-#include "MeshService.h"
+// #include "MeshService.h"
 #include "NodeDB.h"
 #include "PowerFSM.h"
 
