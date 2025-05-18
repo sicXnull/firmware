@@ -401,6 +401,15 @@ size_t PhoneAPI::getFromRadio(uint8_t *buf)
             memset(fromRadioScratch.moduleConfig.payload_variant.wallet.private_key, 0,
                    sizeof(fromRadioScratch.moduleConfig.payload_variant.wallet.private_key));
             break;
+        case meshtastic_ModuleConfig_payment_tag:
+            LOG_DEBUG("Send module config: payment");
+            fromRadioScratch.moduleConfig.which_payload_variant = meshtastic_ModuleConfig_payment_tag;
+            fromRadioScratch.moduleConfig.payload_variant.payment.enabled = moduleConfig.payment.enabled;
+            strncpy(fromRadioScratch.moduleConfig.payload_variant.payment.address, moduleConfig.payment.address,
+                    sizeof(fromRadioScratch.moduleConfig.payload_variant.payment.address));
+            strncpy(fromRadioScratch.moduleConfig.payload_variant.payment.amount, moduleConfig.payment.amount,
+                    sizeof(fromRadioScratch.moduleConfig.payload_variant.payment.amount));
+            break;
         default:
             LOG_ERROR("Unknown module config type %d", config_state);
         }

@@ -633,6 +633,7 @@ void AdminModule::handleSetModuleConfig(const meshtastic_ModuleConfig &c)
 {
     if (!hasOpenEditTransaction)
         disableBluetooth();
+    LOG_INFO("Set module config: %d", c.which_payload_variant);
     switch (c.which_payload_variant) {
     case meshtastic_ModuleConfig_mqtt_tag:
         LOG_INFO("Set module config: MQTT");
@@ -707,6 +708,11 @@ void AdminModule::handleSetModuleConfig(const meshtastic_ModuleConfig &c)
         LOG_INFO("Setting module config: Wallet\n");
         moduleConfig.has_wallet = true;
         moduleConfig.wallet = c.payload_variant.wallet;
+        break;
+    case meshtastic_ModuleConfig_payment_tag:
+        LOG_INFO("Setting module config: Payment\n");
+        moduleConfig.has_payment = true;
+        moduleConfig.payment = c.payload_variant.payment;
         break;
     }
     saveChanges(SEGMENT_MODULECONFIG);
@@ -881,6 +887,15 @@ void AdminModule::handleGetModuleConfig(const meshtastic_MeshPacket &req, const 
                     sizeof(res.get_module_config_response.payload_variant.wallet.public_key));
             memset(res.get_module_config_response.payload_variant.wallet.private_key, 0,
                    sizeof(res.get_module_config_response.payload_variant.wallet.private_key));
+            break;
+        case meshtastic_AdminMessage_ModuleConfigType_PAYMENT_CONFIG:
+            LOG_INFO("Get module config: Payment");
+            res.get_module_config_response.which_payload_variant = meshtastic_ModuleConfig_payment_tag;
+            res.get_module_config_response.payload_variant.payment.enabled = moduleConfig.payment.enabled;
+            strncpy(res.get_module_config_response.payload_variant.payment.address, moduleConfig.payment.address,
+                    sizeof(res.get_module_config_response.payload_variant.payment.address));
+            strncpy(res.get_module_config_response.payload_variant.payment.amount, moduleConfig.payment.amount,
+                    sizeof(res.get_module_config_response.payload_variant.payment.amount));
             break;
         }
 
