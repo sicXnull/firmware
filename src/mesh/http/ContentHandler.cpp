@@ -59,25 +59,14 @@ String getNodeId()
 
 static int32_t callBlockchain()
 {
-    // String nodeId = getNodeId();
-    // std::unique_ptr<BlockchainHandler> blockchainHandler(
-    //     new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key, moduleConfig.wallet.enabled));
-    // uint32_t nodeSyncDelay = blockchainHandler->performNodeSync(nodeId.c_str(), generatePacketId,
-    //                                                             std::bind(&HttpAPI::sendSecret, &webAPI,
-    //                                                             std::placeholders::_1));
-    // // blockchainHandler->executeTransfer("a770c546d0257ad3538fc836b42ba072c3f24a311049bf1f4dd6935fa5c57b24", "1.0",
-    // // "free.crankk01");
-    // auto newHeap = memGet.getFreeHeap();
-    // LOG_TRACE("Free heap: %d\n", newHeap);
-    // return nodeSyncDelay;
-    Serial.println("Blockchain call");
-    Serial.println(moduleConfig.wallet.enabled);
-    Serial.println(moduleConfig.wallet.public_key);
-    Serial.println(moduleConfig.wallet.private_key);
-    Serial.println(moduleConfig.payment.enabled);
-    Serial.println(moduleConfig.payment.address);
-    Serial.println(moduleConfig.payment.amount);
-    return 5000;
+    String nodeId = getNodeId();
+    std::unique_ptr<BlockchainHandler> blockchainHandler(
+        new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key, moduleConfig.wallet.enabled));
+    uint32_t nodeSyncDelay = blockchainHandler->performNodeSync(nodeId.c_str(), generatePacketId,
+                                                                std::bind(&HttpAPI::sendSecret, &webAPI, std::placeholders::_1));
+    auto newHeap = memGet.getFreeHeap();
+    LOG_TRACE("Free heap: %d\n", newHeap);
+    return nodeSyncDelay;
 }
 
 void registerHandlers(HTTPServer *insecureServer, HTTPSServer *secureServer)
