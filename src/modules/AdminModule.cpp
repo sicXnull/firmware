@@ -5,7 +5,7 @@
 #include "PowerFSM.h"
 #include "RTC.h"
 #include "meshUtils.h"
-#include <BlockchainHandler.h>
+#include "modules/esp32/CrankkModule.h"
 #include <FSCommon.h>
 #if defined(ARCH_ESP32) && !MESHTASTIC_EXCLUDE_BLUETOOTH
 #include "BleOta.h"
@@ -712,18 +712,10 @@ void AdminModule::handleSetModuleConfig(const meshtastic_ModuleConfig &c)
         break;
     case meshtastic_ModuleConfig_payment_tag:
         LOG_INFO("Setting module config: Payment\n");
-        moduleConfig.has_payment = true;
-        moduleConfig.payment = c.payload_variant.payment;
-
-        std::unique_ptr<BlockchainHandler> blockchainHandler(
-            new BlockchainHandler(moduleConfig.wallet.public_key, moduleConfig.wallet.private_key, moduleConfig.wallet.enabled));
-        if (blockchainHandler->isWalletConfigValid()) {
-            blockchainHandler->executeTransfer(moduleConfig.payment.address, moduleConfig.payment.amount, "free.crankk01");
-        }
+        crankkModule->sendTransfer(c.payload_variant.payment.address, c.payload_variant.payment.amount);
         break;
     }
-    bool requiresReboot = c.which_payload_variant != meshtastic_ModuleConfig_payment_tag;
-    saveChanges(SEGMENT_MODULECONFIG, requiresReboot);
+    saveChanges(SEGMENT_MODULECONFIG);
 }
 
 void AdminModule::handleSetChannel(const meshtastic_Channel &cc)
